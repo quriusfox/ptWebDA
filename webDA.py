@@ -1,6 +1,7 @@
 import argparse
 
-from tests import RateLimitTest, HeadersTest
+from tests.ratelimit import RateLimitTest
+from tests.headers import HeadersTest
 from helpers import Print
 
 def main() -> int:
