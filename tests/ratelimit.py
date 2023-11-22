@@ -5,10 +5,7 @@ import requests
 import threading
 import concurrent.futures
 
-from helpers import Print
-
-ERROR_TARGET_KILLED_CONNECTION = -1
-ERROR_HTTP_RESP_RATE_LIMIT = -2
+from helpers import Print, Structures
 
 
 class RateLimitTest():
@@ -50,7 +47,7 @@ class RateLimitTest():
 
             if response.status_code == 509:
                 self.failed_req += 1
-                return request_id, ERROR_HTTP_RESP_RATE_LIMIT
+                return request_id, Structures.ERROR_HTTP_RESP_RATE_LIMIT
 
             # Calculate the response time in milliseconds
             response_time_ms = (end_time - start_time) * 1000
@@ -58,7 +55,7 @@ class RateLimitTest():
             return request_id, response_time_ms
         except requests.exceptions.RequestException as e:
             self.failed_req += 1
-            return request_id, ERROR_TARGET_KILLED_CONNECTION  # Mark the request as failed
+            return request_id, Structures.ERROR_TARGET_KILLED_CONNECTION  # Mark the request as failed
 
 
     def display_rps(self, request_count: int, elapsed_time: float):

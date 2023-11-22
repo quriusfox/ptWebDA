@@ -33,3 +33,7 @@ class Print:
 """
         print(banner)
 
+
+class Structures:
+    ERROR_TARGET_KILLED_CONNECTION = -1
+    ERROR_HTTP_RESP_RATE_LIMIT = -2
