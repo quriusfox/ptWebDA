@@ -3,7 +3,8 @@ import time
 import signal
 import requests
 import threading
-import concurrent.futures
+
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 
 from helpers import Print, Structures
 
@@ -24,7 +25,6 @@ class RateLimitTest():
 
         signal.signal(signal.SIGINT, self.signal_handler)
     
-
     def test_info(self):
         Print.info(f"Test info:\n")
         print("\tTest name        : RateLimitTest")
@@ -33,19 +33,18 @@ class RateLimitTest():
         print(f"\tTotal requests   : {self.total_requests}")
         print(f"\tDisplay interval : {self.display_interval}\n")
 
-
     def make_request(self, request_id) -> [int, float]:
         """
         Function to make a single HTTP request and measure response time
         """
-
+        # time.sleep(1)
         try:
             start_time = time.time()
             response = requests.get(self.target)
             response.raise_for_status()
             end_time = time.time()
 
-            if response.status_code == 509:
+            if response.status_code == 509 or response.status_code == 429:
                 self.failed_req += 1
                 return request_id, Structures.ERROR_HTTP_RESP_RATE_LIMIT
 
@@ -56,7 +55,6 @@ class RateLimitTest():
         except requests.exceptions.RequestException as e:
             self.failed_req += 1
             return request_id, Structures.ERROR_TARGET_KILLED_CONNECTION  # Mark the request as failed
-
 
     def display_rps(self, request_count: int, elapsed_time: float):
         """
@@ -74,6 +72,10 @@ class RateLimitTest():
         print(f"\rRequests per second: {rps:.2f}. Failed requests: {self.failed_req:.2f} Progress: {progress_bar} {progress*100:.2f}%", end="", flush=True)
         # print(f"\n{progress_bar} {progress*100:.2f}%", end="", flush=True)
 
+    def print_result(self, request_count, reason) -> None:
+        print(" " * 200, end="\r")
+        Print.error(f"Too many failed requests ({self.failed_req } / {request_count}).\n\tReason: {reason}\n\tApproximate threshold: {request_count - self.failed_req} requests")
+        Print.error("Basic heuristics suggests that the web server has rate limit configured.")
 
     def run_test(self) -> [list, float]:
         """
@@ -84,16 +86,15 @@ class RateLimitTest():
         self.test_info()
 
         # Create a ThreadPoolExecutor to manage the threads
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.num_threads) as executor:
+        with ThreadPoolExecutor(max_workers=self.num_threads) as executor:
             Print.info("Initializing the threads...")
             self.futures = [executor.submit(self.make_request, i) for i in range(self.total_requests)]
-
+            Print.info("Test running!")
+            
             start_time = time.time()
             request_count = 0
 
-            failed_count = 0
-
-            for future in concurrent.futures.as_completed(self.futures):
+            for future in as_completed(self.futures):
                 request_count += 1
 
                 if request_count % (self.num_threads * self.display_interval) == 0:
@@ -103,20 +104,17 @@ class RateLimitTest():
                 # Collect the result of each completed request
                 result = future.result()
 
+                # Grab error reason
                 err = result[1]
                 reason = ""
 
                 if err == -1:
-                    failed_count += 1
                     reason = "ERROR_TARGET_KILLED_CONNECTION"
                 if err == -2:
-                    failed_count += 1
                     reason = "ERROR_HTTP_RESP_RATE_LIMIT"
-
-                if failed_count > self.total_requests / 10:
-                    print(" " * 200, end="\r")
-                    Print.error(f"Too many failed requests ({failed_count} / {request_count}).\n\tReason: {reason}\n\tApproximate threshold: {request_count - failed_count} requests")
-                    Print.error("Basic heuristics suggests that the web server has rate limit configured.")
+                
+                if self.failed_req  > (request_count - self.failed_req ):
+                    self.print_result(request_count, reason)
 
                     for future in self.futures:
                         future.cancel()
@@ -128,19 +126,16 @@ class RateLimitTest():
             self.avg_rps = self.total_requests / elapsed_time
         
             # Wait for all requests to complete
-            concurrent.futures.wait(self.futures)
+            wait(self.futures)
         
         print(" " * 200, end="\r")
         Print.success("Test finished successfully. No rate limit detected!")
 
         return self.results, self.avg_rps
 
-
     def signal_handler(self, sig, frame):
         Print.error("Ctrl + C pressed. Exiting...")
 
-        # sys.exit(0)
-        
         # Set the exit flag to signal the tasks to stop
         self.exit_flag.set()
 

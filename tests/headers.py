@@ -37,23 +37,23 @@ class HeadersTest():
 
             lowercase_headers: dict = {}
             
-            # Convert response headers to lowercase
+            # Normalize the response headers to lowercase
             for key, value in r.headers.items():
                 lowercase_headers[key.lower()] = value
 
             Print.info("Missing headers:")
+
             for header in self.missing_headers:
                 if header not in lowercase_headers:
-                    print(f"\t{header}")    
-        
+                    print(f"\t{header}")
+            
             Print.info("Headers potentialy leaking information:")
             
             for header in self.info_headers:
                 if header in lowercase_headers:
                     print(f"\t{header}: {lowercase_headers[header]}")
 
-            Print.success("Test finished successfully")
-
         except requests.exceptions.RequestException as e:
             Print.error(f"Error occurred: {e}")
 
+        Print.success("Test finished successfully")
