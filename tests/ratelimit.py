@@ -2,8 +2,8 @@ import sys
 import time
 import signal
 import requests
-import threading
 
+from threading import Event
 from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 
 from helpers import Print, Structures
@@ -11,17 +11,15 @@ from helpers import Print, Structures
 
 class RateLimitTest():
     def __init__(self, target: str, total_requests: int = 500, num_threads: int = 10):
-        self.target     : str              = target
-        self.exit_flag  : threading.Event  = threading.Event()
-        self.futures    : list             = []
-        self.results    : list             = []  # Create an empty list to store results
-        self.avg_rps    : float            = 0.0
-        self.failed_req : int              = 0
-
-        # Configs
-        self.total_requests = total_requests
-        self.num_threads = num_threads
-        self.display_interval: int = 0.1
+        self.target           : str              = target
+        self.exit_flag        : Event            = Event()
+        self.futures          : list             = []
+        self.results          : list             = []  # Create an empty list to store results
+        self.avg_rps          : float            = 0
+        self.failed_req       : int              = 0
+        self.total_requests   : int              = total_requests
+        self.num_threads      : int              = num_threads
+        self.display_interval : int              = 0.1
 
         signal.signal(signal.SIGINT, self.signal_handler)
     
@@ -37,7 +35,7 @@ class RateLimitTest():
         """
         Function to make a single HTTP request and measure response time
         """
-        # time.sleep(1)
+        time.sleep(1)
         try:
             start_time = time.time()
             response = requests.get(self.target)
