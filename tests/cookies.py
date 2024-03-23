@@ -1,6 +1,6 @@
 import re
 import requests
-from helpers import Print
+from helpers import Log
 from typing import NamedTuple
 
 
@@ -17,8 +17,25 @@ class CookieTest:
     def __init__(self, target: str) -> None:
         self.target = target
 
+    def run(self):
+        Log.progress("Analyzing cookie attributes")
+        self.test_info()
+
+        try:
+            response: requests.Response = requests.get(self.target)
+
+            all_cookies = self.parse_cookies(response)
+
+            for cookie in all_cookies:
+                self.eval_cookie(cookie)
+
+        except requests.exceptions.RequestException as e:
+            Log.error(f"Error occurred: {e}")
+
+        Log.success("Test finished successfully")
+
     def test_info(self):
-        Print.info(f"Test info:\n")
+        Log.info(f"Test info:\n")
         print("\tTest name : CookeisTest")
         print(f"\tTarget    : {self.target}\n")
 
@@ -64,7 +81,7 @@ class CookieTest:
 
                 all_cookies.append(Cookie(name, secure, http_only, same_site, path, domain))
         else:
-            Print.info("HTTP response did not set any cookies!")
+            Log.info("HTTP response did not set any cookies!")
 
         return all_cookies
 
@@ -75,30 +92,13 @@ class CookieTest:
         Args:
             cookie (Cookie): Cookie to evaluate
         """
-        Print.info(f"Checking cookie {cookie.name}")
+        Log.info(f"Checking cookie {cookie.name}")
 
         if not cookie.secure:
-            Print.warning(f"Cookie {cookie.name} does not have the secure flag set!")
+            Log.warning(f"Cookie {cookie.name} does not have the secure flag set!")
 
         if not cookie.http_only:
-            Print.warning(f"Cookie {cookie.name} is not HttpOnly!")
+            Log.warning(f"Cookie {cookie.name} is not HttpOnly!")
 
         if not cookie.same_site:
-            Print.warning(f"Cookie {cookie.name} has SameSite attribute set to: {cookie.same_site}")
-
-    def run_test(self):
-        Print.progress("Analyzing cookie attributes")
-        self.test_info()
-
-        try:
-            response: requests.Response = requests.get(self.target)
-
-            all_cookies = self.parse_cookies(response)
-
-            for cookie in all_cookies:
-                self.eval_cookie(cookie)
-
-        except requests.exceptions.RequestException as e:
-            Print.error(f"Error occurred: {e}")
-
-        Print.success("Test finished successfully")
+            Log.warning(f"Cookie {cookie.name} has SameSite attribute set to: {cookie.same_site}")

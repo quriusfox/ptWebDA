@@ -1,18 +1,13 @@
 import requests
-from helpers import Print
+from helpers import Log
 
 
 class CSPTest:
     def __init__(self, target: str) -> None:
         self.target = target
 
-    def test_info(self):
-        Print.info(f"Test info:\n")
-        print("\tTest name : CSPTest")
-        print(f"\tTarget    : {self.target}\n")
-
-    def run_test(self):
-        Print.progress("Analyzing CSP directives")
+    def run(self):
+        Log.progress("Analyzing CSP directives")
         self.test_info()
 
         try:
@@ -24,12 +19,17 @@ class CSPTest:
 
                     for directive in directives:
                         if "unsafe" in directive.lower():
-                            Print.warning(directive)
+                            Log.warning(directive)
                             continue
 
-                        Print.info(directive)
+                        Log.info(directive)
 
         except requests.exceptions.RequestException as e:
-            Print.error(f"Error occurred: {e}")
+            Log.error(f"Error occurred: {e}")
 
-        Print.success("Test finished successfully")
+        Log.success("Test finished successfully")
+
+    def test_info(self):
+        Log.info(f"Test info:\n")
+        print("\tTest name : CSPTest")
+        print(f"\tTarget    : {self.target}\n")

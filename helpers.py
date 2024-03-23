@@ -1,7 +1,7 @@
 from colorama import Fore, Style
 
 
-class Print:
+class Log:
     @staticmethod
     def progress(msg: str):
         print(Fore.YELLOW + "\n[*] " + Style.RESET_ALL + msg)
@@ -27,18 +27,13 @@ class Print:
         banner = """
 
  __          __  _     _____
- \ \        / / | |   |  __ \   /\\
-  \ \  /\  / /__| |__ | |  | | /  \\
-   \ \/  \/ / _ \ '_ \| |  | |/ /\ \\
-    \  /\  /  __/ |_) | |__| / ____ \\
-     \/  \/ \___|_.__/|_____/_/    \_\\
+ \\ \\        / / | |   |  __ \\   /\\
+  \\ \\  /\\  / /__| |__ | |  | | /  \\
+   \\ \\/  \\/ / _ \\ '_ \\| |  | |/ /\\ \\
+    \\  /\\  /  __/ |_) | |__| / ____ \\
+     \\/  \\/ \\___|_.__/|_____/_/    \\_\\
 
 
 
 """
         print(banner)
-
-
-class Structures:
-    ERROR_TARGET_KILLED_CONNECTION = -1
-    ERROR_HTTP_RESP_RATE_LIMIT = -2
