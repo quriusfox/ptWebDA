@@ -7,7 +7,7 @@ import concurrent.futures
 from threading import Event
 from typing import NamedTuple
 
-from helpers import Log
+from modules.helpers import Log
 
 RESPONSE_STATUS = {429: "HTTP 429 Too Many Requests", 509: "http 509 Bandwidth Limit Exceeded"}
 

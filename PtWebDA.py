@@ -4,8 +4,7 @@ from modules import RateLimitTest
 from modules import HeadersTest
 from modules import CSPTest
 from modules import CookieTest
-
-from helpers import Log
+from modules import Log
 
 
 def main() -> None:

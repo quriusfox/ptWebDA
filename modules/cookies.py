@@ -1,6 +1,6 @@
 import re
 import requests
-from helpers import Log
+from modules.helpers import Log
 from typing import NamedTuple
 
 

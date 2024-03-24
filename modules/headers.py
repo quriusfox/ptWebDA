@@ -1,6 +1,6 @@
 import requests
 
-from helpers import Log
+from modules.helpers import Log
 
 
 class HeadersTest:

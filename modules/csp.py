@@ -6,7 +6,7 @@ from requests.structures import CaseInsensitiveDict
 from bs4 import BeautifulSoup
 from typing import NamedTuple
 
-from helpers import Log
+from modules.helpers import Log
 
 CSP_HEADERS = {"content-security-policy", "x-content-security-policy", "x-webkit-csp"}
 
