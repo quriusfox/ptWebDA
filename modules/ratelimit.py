@@ -44,8 +44,8 @@ class RateLimitTest:
         """
         Main function for the current test.
         """
-        Log.progress("Testing rate limit")
         Log.info(f"Test info:{self.test_info()}")
+        Log.progress("Testing rate limit")
 
         result: RateLimitResult = self.test()
 
@@ -62,6 +62,7 @@ class RateLimitTest:
             str: Formatted string containing test information, ready to print to console.
         """
         info = ""
+        info += f"\n\tTest name:       : RateLimitTest"
         info += f"\n\tTarget:          : {self.url}"
         info += f"\n\tThreads          : {self.num_threads}"
         info += f"\n\tTotal requests   : {self.total_requests}"
