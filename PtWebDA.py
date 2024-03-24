@@ -1,9 +1,9 @@
 import argparse
 
-from tests import RateLimitTest
-from tests import HeadersTest
-from tests import CSPTest
-from tests import CookieTest
+from modules import RateLimitTest
+from modules import HeadersTest
+from modules import CSPTest
+from modules import CookieTest
 
 from helpers import Log
 
