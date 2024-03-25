@@ -1,7 +1,10 @@
 import re
 import requests
-from modules.helpers import Log
+
 from typing import NamedTuple
+
+from .helpers import Log
+from .http import HTTPRequest, HTTPRequestParser
 
 
 class Cookie(NamedTuple):
@@ -14,15 +17,38 @@ class Cookie(NamedTuple):
 
 
 class CookieTest:
-    def __init__(self, target: str) -> None:
+    def __init__(
+        self, target: str | None, request_file_path: str | None = None, https: bool = True
+    ) -> None:
         self.target = target
+
+        if self.target is None:
+            if request_file_path:
+                parser = HTTPRequestParser(request_file_path, https)
+                self.http_request: HTTPRequest = parser.parse()
 
     def run(self):
         Log.progress("Analyzing cookie attributes")
         self.test_info()
 
         try:
-            response: requests.Response = requests.get(self.target)
+            response = requests.Response()
+
+            if self.http_request:
+                response = requests.get(
+                    (
+                        "https://" + self.http_request.host + self.http_request.path
+                        if self.http_request.https
+                        else "http://" + self.http_request.host + self.http_request.path
+                    ),
+                    cookies=self.http_request.cookies,
+                    data=self.http_request.data,
+                )
+            else:
+                if self.target is not None:
+                    response = requests.get(self.target)
+                else:
+                    raise ValueError("Target cannot be 'None'")
 
             all_cookies = self.parse_cookies(response)
 

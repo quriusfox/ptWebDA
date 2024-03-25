@@ -6,7 +6,8 @@ from requests.structures import CaseInsensitiveDict
 from bs4 import BeautifulSoup
 from typing import NamedTuple
 
-from modules.helpers import Log
+from .helpers import Log
+from .http import HTTPRequest, HTTPRequestParser
 
 CSP_HEADERS = {"content-security-policy", "x-content-security-policy", "x-webkit-csp"}
 
@@ -31,8 +32,15 @@ class CSPDirective(NamedTuple):
 
 
 class CSPTest:
-    def __init__(self, target: str) -> None:
+    def __init__(
+        self, target: str | None, request_file_path: str | None = None, https: bool = True
+    ) -> None:
         self.target = target
+
+        if self.target is None:
+            if request_file_path:
+                parser = HTTPRequestParser(request_file_path, https)
+                self.http_request: HTTPRequest = parser.parse()
 
         self.csp_directives: list[CSPDirective] = []
 
@@ -49,7 +57,23 @@ class CSPTest:
 
     def test(self):
         try:
-            response: requests.Response = requests.get(self.target)
+            response = requests.Response()
+
+            if self.http_request:
+                response = requests.get(
+                    (
+                        "https://" + self.http_request.host + self.http_request.path
+                        if self.http_request.https
+                        else "http://" + self.http_request.host + self.http_request.path
+                    ),
+                    cookies=self.http_request.cookies,
+                    data=self.http_request.data,
+                )
+            else:
+                if self.target is not None:
+                    response = requests.get(self.target)
+                else:
+                    raise ValueError("Target cannot be 'None'")
 
             r = Response(response.headers, Html(response.url, response.text))
 
@@ -62,21 +86,33 @@ class CSPTest:
         Log.success("Test finished successfully")
 
     def check_csp_headers(self, response: Response) -> None:
+        directives: list[str] = []
+
         for key, value in response.headers.items():
             if key.lower() in CSP_HEADERS:
                 directives = value.split("; ")
 
-                self.csp_directives = self.eval_directives(directives)
+        if len(directives) == 0:
+            Log.info("Server did not respond with any CSP headers!")
+            return
+
+        self.csp_directives = self.eval_directives(directives)
 
     def check_csp_html(self, response: Response) -> None:
+        directives: list[str] = []
+
         for meta_http in response.html.soup_body.find_all(
             "meta", attrs={"http-equiv": True, "content": True}
         ):
+
             for header in CSP_HEADERS:
                 if meta_http["http-equiv"].lower().strip() == header:
                     directives = meta_http["content"].split(";")
 
-                    self.csp_directives = self.eval_directives(directives)
+        if len(directives) == 0:
+            Log.info("HTML content does not include any CSP configuration!")
+
+        self.csp_directives = self.eval_directives(directives)
 
     def eval_directives(self, directives: list[str]) -> list[CSPDirective]:
         eval_directives: list[CSPDirective] = []

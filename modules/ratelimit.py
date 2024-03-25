@@ -7,7 +7,8 @@ import concurrent.futures
 from threading import Event
 from typing import NamedTuple
 
-from modules.helpers import Log
+from .helpers import Log
+from .http import HTTPRequest, HTTPRequestParser
 
 RESPONSE_STATUS = {429: "HTTP 429 Too Many Requests", 509: "http 509 Bandwidth Limit Exceeded"}
 
@@ -23,9 +24,21 @@ class RateLimitResult(NamedTuple):
 
 
 class RateLimitTest:
-    def __init__(self, url: str, num_threads: int = 10, total_requests: int = 1000):
+    def __init__(
+        self,
+        target: str | None,
+        request_file_path: str | None = None,
+        https: bool = True,
+        num_threads: int = 10,
+        total_requests: int = 1000,
+    ) -> None:
+        self.target = target
 
-        self.url: str = url
+        if self.target is None:
+            if request_file_path:
+                parser = HTTPRequestParser(request_file_path, https)
+                self.http_request: HTTPRequest = parser.parse()
+
         self.num_threads: int = num_threads
         self.total_requests: int = total_requests
 
@@ -63,7 +76,7 @@ class RateLimitTest:
         """
         info = ""
         info += f"\n\tTest name:       : RateLimitTest"
-        info += f"\n\tTarget:          : {self.url}"
+        info += f"\n\tTarget:          : {self.target}"
         info += f"\n\tThreads          : {self.num_threads}"
         info += f"\n\tTotal requests   : {self.total_requests}"
         info += f"\n\tDisplay interval : {self.display_interval}\n"
@@ -124,11 +137,26 @@ class RateLimitTest:
         # time.sleep(1)
         try:
             start_time = time.time()
-            response = requests.get(self.url)
+            response = requests.Response()
+
+            if self.http_request:
+                response = requests.get(
+                    (
+                        "https://" + self.http_request.host + self.http_request.path
+                        if self.http_request.https
+                        else "http://" + self.http_request.host + self.http_request.path
+                    ),
+                    cookies=self.http_request.cookies,
+                    data=self.http_request.data,
+                )
+            else:
+                if self.target is not None:
+                    response = requests.get(self.target)
+                else:
+                    raise ValueError("Target cannot be 'None'")
+
             end_time = time.time()
-
             response_time = (end_time - start_time) * 1000
-
             status_code: int = response.status_code
 
             if status_code == 509 or status_code == 429:
@@ -136,7 +164,6 @@ class RateLimitTest:
 
             return Response(status_code, response_time)
         except requests.exceptions.RequestException:
-            # Log.error(f"Exception occured!: {e}")
             self.failed_req += 1
             return None
 
@@ -148,18 +175,21 @@ class RateLimitTest:
             request_count (int): Number of requests already sent during the execution of the test()
             function.
         """
-        rps: float = request_count / self.elapsed_time
+        try:
+            rps: float = request_count / self.elapsed_time
 
-        progress = request_count / self.total_requests
-        bar_length = 20
-        block = int(round(bar_length * progress))
-        progress_bar = "[" + "=" * block + ">" + "-" * (bar_length - block) + "]"
+            progress = request_count / self.total_requests
+            bar_length = 20
+            block = int(round(bar_length * progress))
+            progress_bar = "[" + "=" * block + ">" + "-" * (bar_length - block) + "]"
 
-        print(
-            f"\rRequests per second: {rps:.2f}. Failed requests: {self.failed_req:.2f} Progress: {progress_bar} {progress*100:.2f}%",
-            end="",
-            flush=True,
-        )
+            print(
+                f"\rRequests per second: {rps:.2f}. Failed requests: {self.failed_req:.2f} Progress: {progress_bar} {progress*100:.2f}%",
+                end="",
+                flush=True,
+            )
+        except:
+            pass
 
     def evaluate(self, request_count: int) -> None:
         """

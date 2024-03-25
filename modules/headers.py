@@ -1,11 +1,20 @@
 import requests
 
-from modules.helpers import Log
+from .helpers import Log
+from .http import HTTPRequest, HTTPRequestParser
 
 
 class HeadersTest:
-    def __init__(self, target: str):
-        self.target: str = target
+    def __init__(
+        self, target: str | None, request_file_path: str | None = None, https: bool = True
+    ) -> None:
+        self.target = target
+
+        if self.target is None:
+            if request_file_path:
+                parser = HTTPRequestParser(request_file_path, https)
+                self.http_request: HTTPRequest = parser.parse()
+
         self.info_headers: list[str] = [
             "server",
             "x-powered-by",
@@ -26,7 +35,23 @@ class HeadersTest:
         self.test_info()
 
         try:
-            response: requests.Response = requests.get(self.target)
+            response = requests.Response()
+
+            if self.http_request:
+                response = requests.get(
+                    (
+                        "https://" + self.http_request.host + self.http_request.path
+                        if self.http_request.https
+                        else "http://" + self.http_request.host + self.http_request.path
+                    ),
+                    cookies=self.http_request.cookies,
+                    data=self.http_request.data,
+                )
+            else:
+                if self.target is not None:
+                    response = requests.get(self.target)
+                else:
+                    raise ValueError("Target cannot be 'None'")
 
             lowercase_headers: dict[str, str] = {}
 
