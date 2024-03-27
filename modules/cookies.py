@@ -21,11 +21,12 @@ class CookieTest:
         self, target: str | None, request_file_path: str | None = None, https: bool = True
     ) -> None:
         self.target = target
+        self.http_request: HTTPRequest | None = None
 
         if self.target is None:
             if request_file_path:
                 parser = HTTPRequestParser(request_file_path, https)
-                self.http_request: HTTPRequest = parser.parse()
+                self.http_request = parser.parse()
 
     def run(self):
         Log.progress("Analyzing cookie attributes")
@@ -34,7 +35,7 @@ class CookieTest:
         try:
             response = requests.Response()
 
-            if self.http_request:
+            if self.http_request is not None:
                 response = requests.get(
                     (
                         "https://" + self.http_request.host + self.http_request.path

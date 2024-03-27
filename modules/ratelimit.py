@@ -33,11 +33,12 @@ class RateLimitTest:
         total_requests: int = 1000,
     ) -> None:
         self.target = target
+        self.http_request: HTTPRequest | None = None
 
         if self.target is None:
             if request_file_path:
                 parser = HTTPRequestParser(request_file_path, https)
-                self.http_request: HTTPRequest = parser.parse()
+                self.http_request = parser.parse()
 
         self.num_threads: int = num_threads
         self.total_requests: int = total_requests
@@ -139,7 +140,7 @@ class RateLimitTest:
             start_time = time.time()
             response = requests.Response()
 
-            if self.http_request:
+            if self.http_request is not None:
                 response = requests.get(
                     (
                         "https://" + self.http_request.host + self.http_request.path
