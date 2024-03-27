@@ -45,6 +45,7 @@ class RateLimitTest:
 
         self.avg_rps: float = 0
         self.failed_req: int = 0
+        self.success_req = 0
         self.elapsed_time: float = 0
 
         self.results: list[Response] = []
@@ -97,25 +98,22 @@ class RateLimitTest:
             self.futures = [executor.submit(self.make_request) for _ in range(self.total_requests)]
 
             start_time = time.time()
-            request_count = 0
 
             for future in concurrent.futures.as_completed(self.futures):
-                request_count += 1
-
-                if request_count % (self.num_threads * self.display_interval) == 0:
+                if self.success_req % (self.num_threads * self.display_interval) == 0:
                     self.elapsed_time = time.time() - start_time
-                    self.display_rps(request_count)
+                    self.display_rps(self.success_req)
 
                 result = future.result()
 
                 if result is None:
                     continue
 
-                if self.failed_req > (request_count - self.failed_req):
+                if self.failed_req == self.success_req:
                     for future in self.futures:
                         future.cancel()
 
-                    return RateLimitResult(True, request_count)
+                    return RateLimitResult(True, self.success_req)
 
                 self.results.append(result)
 
@@ -136,6 +134,7 @@ class RateLimitTest:
             Response | None: A structure representing HTTP status code and response time.
         """
         # time.sleep(1)
+
         try:
             start_time = time.time()
             response = requests.Response()
@@ -162,66 +161,67 @@ class RateLimitTest:
 
             if status_code == 509 or status_code == 429:
                 self.failed_req += 1
-
+            else:
+                self.success_req += 1
             return Response(status_code, response_time)
         except requests.exceptions.RequestException:
             self.failed_req += 1
             return None
 
-    def display_rps(self, request_count: int) -> None:
+    def display_rps(self, success_req: int) -> None:
         """
         Function to display requests per second.
 
         Args:
-            request_count (int): Number of requests already sent during the execution of the test()
+            success_req (int): Number of requests already sent during the execution of the test()
             function.
         """
         try:
-            rps: float = request_count / self.elapsed_time
+            rps: float = success_req / self.elapsed_time
 
-            progress = request_count / self.total_requests
+            progress = success_req / self.total_requests
             bar_length = 20
             block = int(round(bar_length * progress))
             progress_bar = "[" + "=" * block + ">" + "-" * (bar_length - block) + "]"
 
             print(
-                f"\rRequests per second: {rps:.2f}. Failed requests: {self.failed_req:.2f} Progress: {progress_bar} {progress*100:.2f}%",
+                f"\rRequests per second: {rps:.2f}. Total requests: {self.success_req:.2f + self.failed_req:.2f}. Failed requests: {self.failed_req:.2f} Progress: {progress_bar} {progress*100:.2f}%",
                 end="",
                 flush=True,
             )
         except:
             pass
 
-    def evaluate(self, request_count: int) -> None:
+    def evaluate(self, success_req: int) -> None:
         """
         Prints the information about the test's results.
 
         Args:
-            request_count (int): Number of requests sent during the execution of the test() function.
+            success_req (int): Number of requests sent during the execution of the test() function.
         """
         print(" " * 200, end="\r")
 
-        Log.error(f"Too many failed requests ({self.failed_req} / {request_count})")
+        Log.error(f"Too many failed requests ({self.failed_req} / {success_req + self.failed_req})")
         Log.error("Basic heuristics suggests that the web server has rate limit configured")
-        Log.info(f"Approximate threshold: {request_count - self.failed_req} requests")
+        Log.info(f"Approximate threshold: {success_req} requests")
         Log.info(f"Elapsed time: {self.elapsed_time:.2f}")
 
-        sum409 = 0
+        sum429 = 0
         sum509 = 0
 
         for result in self.results:
             if result.status_code == 429:
-                sum409 += 1
+                sum429 += 1
             elif result.status_code == 509:
                 sum509 += 1
 
-        if sum409 != 0:
-            Log.info(f"Requests terminated with '{RESPONSE_STATUS[429]}' = {sum409}")
+        if sum429 != 0:
+            Log.info(f"Requests terminated with '{RESPONSE_STATUS[429]}' = {sum429}")
         if sum509 != 0:
             Log.info(f"Requests terminated with '{RESPONSE_STATUS[509]}' = {sum509}")
         if self.failed_req - sum509 - sum509 > 0:
             Log.info(
-                f"Requests terminated by connection error = {self.failed_req - sum509 - sum509}"
+                f"Requests terminated by connection error = {self.failed_req - sum429 - sum509}"
             )
 
     def signal_handler(self, sig, frame):  # type: ignore
