@@ -91,6 +91,7 @@ class CookieTest:
 
             for cookie in cookies:
                 attribs = cookie.split("; ")
+                attribs = [attr.lower() for attr in attribs]
                 name = attribs[0].split("=")[0].strip()
 
                 # Check for secure flag
@@ -98,12 +99,12 @@ class CookieTest:
                     secure = True
 
                 # Check for HttpOnly flag
-                if "HttpOnly" in attribs:
+                if "httponly" in attribs:
                     http_only = True
 
                 # Check for SameSite attribute
                 for attr in attribs:
-                    if "SameSite" in attr:
+                    if "samesite" in attr:
                         same_site = attr.split("=")[1].strip()
 
                 all_cookies.append(Cookie(name, secure, http_only, same_site, path, domain))
@@ -127,5 +128,5 @@ class CookieTest:
         if not cookie.http_only:
             Log.warning(f"Cookie {cookie.name} is not HttpOnly!")
 
-        if not cookie.same_site:
+        if cookie.same_site:
             Log.warning(f"Cookie {cookie.name} has SameSite attribute set to: {cookie.same_site}")
