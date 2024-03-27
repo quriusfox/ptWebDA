@@ -29,31 +29,51 @@ class RateLimitTest:
         target: str | None,
         request_file_path: str | None = None,
         https: bool = True,
-        num_threads: int = 10,
-        total_requests: int = 1000,
+        num_threads: int = 20,
+        total_requests: int = 10000,
     ) -> None:
+        # Values from constructor
         self.target = target
-        self.http_request: HTTPRequest | None = None
+        self.num_threads: int = num_threads
+        self.total_requests: int = total_requests
+
+        # Values for preparing a requests.Request() object
+        self.prepared_request = requests.Request()
 
         if self.target is None:
             if request_file_path:
                 parser = HTTPRequestParser(request_file_path, https)
-                self.http_request = parser.parse()
+                http_request: HTTPRequest = parser.parse()
 
-        self.num_threads: int = num_threads
-        self.total_requests: int = total_requests
+                url = (
+                    "https://" + http_request.host + http_request.path
+                    if http_request.https
+                    else "http://" + http_request.host + http_request.path
+                )
 
-        self.avg_rps: float = 0
+                self.prepared_request = requests.Request(
+                    http_request.method, url, data=http_request.data, cookies=http_request.cookies
+                )
+        else:
+            self.prepared_request = requests.Request("GET", self.target)
+
+        # Values for evaluation of rate limiting
         self.failed_req: int = 0
         self.success_req = 0
-        self.elapsed_time: float = 0
 
-        self.results: list[Response] = []
+        # Values for progress display in terminal
+        self.start_time: float = time.time()
+        self.elapsed_time: float = 0
+        self.avg_rps: float = 0
         self.display_interval: float = 0.1
 
+        # Thread handling
         self.futures = []
         self.exit_flag: Event = Event()
         signal.signal(signal.SIGINT, self.signal_handler)  # type: ignore
+
+        # Final results
+        self.results: list[Response] = []
 
     def run(self) -> None:
         """
@@ -78,7 +98,7 @@ class RateLimitTest:
         """
         info = ""
         info += f"\n\tTest name:       : RateLimitTest"
-        info += f"\n\tTarget:          : {self.target}"
+        info += f"\n\tTarget:          : {self.target if self.target is not None else self.prepared_request.url}"
         info += f"\n\tThreads          : {self.num_threads}"
         info += f"\n\tTotal requests   : {self.total_requests}"
         info += f"\n\tDisplay interval : {self.display_interval}\n"
@@ -97,19 +117,17 @@ class RateLimitTest:
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.num_threads) as executor:
             self.futures = [executor.submit(self.make_request) for _ in range(self.total_requests)]
 
-            start_time = time.time()
-
             for future in concurrent.futures.as_completed(self.futures):
                 if self.success_req % (self.num_threads * self.display_interval) == 0:
-                    self.elapsed_time = time.time() - start_time
-                    self.display_rps(self.success_req)
+                    self.elapsed_time = time.time() - self.start_time
+                    self.display_rps()
 
                 result = future.result()
 
                 if result is None:
                     continue
 
-                if self.failed_req == self.success_req:
+                if self.failed_req > self.success_req:
                     for future in self.futures:
                         future.cancel()
 
@@ -133,27 +151,15 @@ class RateLimitTest:
         Returns:
             Response | None: A structure representing HTTP status code and response time.
         """
-        # time.sleep(1)
+        if self.success_req % (self.num_threads * self.display_interval) == 0:
+            self.elapsed_time = time.time() - self.start_time
+            self.display_rps()
 
         try:
             start_time = time.time()
-            response = requests.Response()
 
-            if self.http_request is not None:
-                response = requests.get(
-                    (
-                        "https://" + self.http_request.host + self.http_request.path
-                        if self.http_request.https
-                        else "http://" + self.http_request.host + self.http_request.path
-                    ),
-                    cookies=self.http_request.cookies,
-                    data=self.http_request.data,
-                )
-            else:
-                if self.target is not None:
-                    response = requests.get(self.target)
-                else:
-                    raise ValueError("Target cannot be 'None'")
+            # Send the final prepared request in the constructor
+            response = requests.Session().send(self.prepared_request.prepare())
 
             end_time = time.time()
             response_time = (end_time - start_time) * 1000
@@ -168,7 +174,7 @@ class RateLimitTest:
             self.failed_req += 1
             return None
 
-    def display_rps(self, success_req: int) -> None:
+    def display_rps(self) -> None:
         """
         Function to display requests per second.
 
@@ -177,15 +183,15 @@ class RateLimitTest:
             function.
         """
         try:
-            rps: float = success_req / self.elapsed_time
+            rps: float = self.success_req / self.elapsed_time
 
-            progress = success_req / self.total_requests
+            progress = self.success_req / self.total_requests
             bar_length = 20
             block = int(round(bar_length * progress))
             progress_bar = "[" + "=" * block + ">" + "-" * (bar_length - block) + "]"
 
             print(
-                f"\rRequests per second: {rps:.2f}. Total requests: {self.success_req:.2f + self.failed_req:.2f}. Failed requests: {self.failed_req:.2f} Progress: {progress_bar} {progress*100:.2f}%",
+                f"\rRequests per second: {rps:.2f}. Total requests: {(self.success_req + self.failed_req):.2f}. Failed requests: {self.failed_req:.2f} Progress: {progress_bar} {progress*100:.2f}%",
                 end="",
                 flush=True,
             )
