@@ -1,5 +1,5 @@
 import argparse
-from modules import RateLimitTest, HeadersTest, CSPTest, CookieTest, Log
+from modules import RateLimitTest, HeadersTest, CSPTest, CookieTest, TLSTest, Log
 
 
 def main() -> None:
@@ -8,7 +8,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Check HTTP headers for a given URL.")
     parser.add_argument(
         "test_type",
-        choices=["headers", "ratelimit", "csp", "cookies", "all"],
+        choices=["headers", "ratelimit", "csp", "cookies", "tls", "all"],
         help="Type of test to perform",
     )
     parser.add_argument("--url", help="URL to check headers for")
@@ -28,6 +28,9 @@ def main() -> None:
     elif args.test_type == "cookies":
         test_cookies = CookieTest(args.url, args.file)
         test_cookies.run()
+    elif args.test_type == "tls":
+        test = TLSTest(args.url, args.file)
+        test.run()
     elif args.test_type == "all":
         test_headers = HeadersTest(args.url, args.file)
         test_headers.run()
