@@ -95,7 +95,7 @@ class HTTPRequestParser:
 
         if cookies:
             for cookie in cookies.split(";"):
-                key, value = cookie.split("=")
+                key, value = cookie.split("=", 1)
                 cookie_dict[key.strip()] = value.strip()
 
         return cookie_dict
