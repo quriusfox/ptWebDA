@@ -1,6 +1,7 @@
 import sys
 import time
 import signal
+import argparse
 import requests
 import concurrent.futures
 
@@ -8,11 +9,15 @@ from threading import Event
 from typing import NamedTuple
 
 from .helpers import Log
-from .http import HTTPRequest, HTTPRequestParser
+from .basemodule import BaseModule
 
+# region Constants
 RESPONSE_STATUS = {429: "HTTP 429 Too Many Requests", 509: "http 509 Bandwidth Limit Exceeded"}
 
+# endregion
 
+
+# region Structures
 class Response(NamedTuple):
     status_code: int
     response_time: float
@@ -23,39 +28,50 @@ class RateLimitResult(NamedTuple):
     request_threshold: int | None
 
 
-class RateLimitTest:
+# endregion
+
+
+# region Main module class
+class RateLimitTest(BaseModule[RateLimitResult]):
+    """
+    This class represents the rate limiting module. This module tries to evaluate whether the target
+    werb server performs some sort of rate limiting. The module sends a pre-defined amount of HTTP
+    requests to a specified endpoint and monitors how the web server reacts to this heavier load.
+
+    The rate limiting is detected based on the premises that the number of failed reqeusts must NOT
+    surpass the number of successful reqeusts. This approach is not optimal and cannot cover complex
+    cases, however, it should be efficient enought to detect rate limiting on some web forms or
+    various APIs.
+
+    If the rate limiting is detected by the module, the tester is informed about the apporximate
+    threshold of how many request were sent before the server enforced rate limiting.
+    """
+
     def __init__(
         self,
         target: str | None,
         request_file_path: str | None = None,
         https: bool = True,
-        num_threads: int = 20,
+        num_threads: int = 50,
         total_requests: int = 10000,
     ) -> None:
+        """
+        Constructor for the HTTP headers module. At first the target setup is performed. Tester can
+        also specify numbr of theads to use and total number of requests that should be sent during
+        the test.
+
+        Args:
+            target (str | None): _description_
+            request_file_path (str | None, optional): _description_. Defaults to None.
+            https (bool, optional): _description_. Defaults to True.
+            num_threads (int, optional): _description_. Defaults to 20.
+            total_requests (int, optional): _description_. Defaults to 10000.
+        """
+        super().__init__(target, request_file_path, https)
+
         # Values from constructor
-        self.target = target
         self.num_threads: int = num_threads
-        self.total_requests: int = total_requests
-
-        # Values for preparing a requests.Request() object
-        self.prepared_request = requests.Request()
-
-        if self.target is None:
-            if request_file_path:
-                parser = HTTPRequestParser(request_file_path, https)
-                http_request: HTTPRequest = parser.parse()
-
-                url = (
-                    "https://" + http_request.host + http_request.path
-                    if http_request.https
-                    else "http://" + http_request.host + http_request.path
-                )
-
-                self.prepared_request = requests.Request(
-                    http_request.method, url, data=http_request.data, cookies=http_request.cookies
-                )
-        else:
-            self.prepared_request = requests.Request("GET", self.target)
+        self.total_requests = total_requests
 
         # Values for evaluation of rate limiting
         self.failed_req: int = 0
@@ -70,32 +86,28 @@ class RateLimitTest:
         # Thread handling
         self.futures = []
         self.exit_flag: Event = Event()
-        signal.signal(signal.SIGINT, self.signal_handler)  # type: ignore
+        signal.signal(signal.SIGINT, self.__signal_handler)  # type: ignore
 
         # Final results
-        self.results: list[Response] = []
+        self.meta_resutls: list[Response] = []
+        self.result: RateLimitResult | None = None
 
     def run(self) -> None:
         """
         Main function for the current test.
         """
-        Log.info(f"Test info:{self.test_info()}")
-        Log.progress("Testing rate limit")
+        self.print_info()
+        self.result: RateLimitResult | None = self.test()
+        self.print_results()
 
-        result: RateLimitResult = self.test()
+        Log.success("Test finished successfully")
 
-        if result.rate_limited and result.request_threshold is not None:
-            self.evaluate(result.request_threshold)
-        else:
-            Log.success("Test finished successfully. No rate limit detected!")
-
-    def test_info(self) -> str:
+    def print_info(self) -> None:
         """
         Provides basic information about current test's setup parameters.
-
-        Returns:
-            str: Formatted string containing test information, ready to print to console.
         """
+        Log.progress(f"Test info:\n")
+
         info = ""
         info += f"\n\tTest name:       : RateLimitTest"
         info += f"\n\tTarget:          : {self.target if self.target is not None else self.prepared_request.url}"
@@ -103,7 +115,7 @@ class RateLimitTest:
         info += f"\n\tTotal requests   : {self.total_requests}"
         info += f"\n\tDisplay interval : {self.display_interval}\n"
 
-        return info
+        print(info)
 
     def test(self) -> RateLimitResult:
         """
@@ -115,12 +127,14 @@ class RateLimitTest:
             it took to trigger the rate limit.
         """
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.num_threads) as executor:
-            self.futures = [executor.submit(self.make_request) for _ in range(self.total_requests)]
+            self.futures = [
+                executor.submit(self.__make_request) for _ in range(self.total_requests)
+            ]
 
             for future in concurrent.futures.as_completed(self.futures):
                 if self.success_req % (self.num_threads * self.display_interval) == 0:
                     self.elapsed_time = time.time() - self.start_time
-                    self.display_rps()
+                    self.__display_rps()
 
                 result = future.result()
 
@@ -133,7 +147,7 @@ class RateLimitTest:
 
                     return RateLimitResult(True, self.success_req)
 
-                self.results.append(result)
+                self.meta_resutls.append(result)
 
             concurrent.futures.wait(self.futures)
 
@@ -141,7 +155,48 @@ class RateLimitTest:
 
         return RateLimitResult(False, None)
 
-    def make_request(self, path: str | None = None) -> Response | None:
+    def evaluate(self) -> None:
+        raise NotImplementedError
+
+    def print_results(self) -> None:
+        """
+        Prints the information about the test's results.
+        """
+        print(" " * 200, end="\r")
+
+        Log.error(
+            f"Too many failed requests ({self.failed_req} / {self.success_req + self.failed_req})"
+        )
+        Log.error("Basic heuristics suggests that the web server has rate limit configured")
+        Log.info(f"Approximate threshold: {self.success_req} requests")
+        Log.info(f"Elapsed time: {self.elapsed_time:.2f}")
+
+        sum429 = 0
+        sum509 = 0
+
+        for result in self.meta_resutls:
+            if result.status_code == 429:
+                sum429 += 1
+            elif result.status_code == 509:
+                sum509 += 1
+
+        if sum429 != 0:
+            Log.info(f"Requests terminated with '{RESPONSE_STATUS[429]}' = {sum429}")
+        if sum509 != 0:
+            Log.info(f"Requests terminated with '{RESPONSE_STATUS[509]}' = {sum509}")
+        if self.failed_req - sum509 - sum509 > 0:
+            Log.info(
+                f"Requests terminated by connection error = {self.failed_req - sum429 - sum509}"
+            )
+
+    def json(self) -> None:
+        raise NotImplementedError
+
+    @staticmethod
+    def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore
+        raise NotImplementedError
+
+    def __make_request(self, path: str | None = None) -> Response | None:
         """
         Function to make a single HTTP request and measure response time
 
@@ -153,7 +208,7 @@ class RateLimitTest:
         """
         if self.success_req % (self.num_threads * self.display_interval) == 0:
             self.elapsed_time = time.time() - self.start_time
-            self.display_rps()
+            self.__display_rps()
 
         try:
             start_time = time.time()
@@ -174,7 +229,7 @@ class RateLimitTest:
             self.failed_req += 1
             return None
 
-    def display_rps(self) -> None:
+    def __display_rps(self) -> None:
         """
         Function to display requests per second.
 
@@ -198,39 +253,7 @@ class RateLimitTest:
         except:
             pass
 
-    def evaluate(self, success_req: int) -> None:
-        """
-        Prints the information about the test's results.
-
-        Args:
-            success_req (int): Number of requests sent during the execution of the test() function.
-        """
-        print(" " * 200, end="\r")
-
-        Log.error(f"Too many failed requests ({self.failed_req} / {success_req + self.failed_req})")
-        Log.error("Basic heuristics suggests that the web server has rate limit configured")
-        Log.info(f"Approximate threshold: {success_req} requests")
-        Log.info(f"Elapsed time: {self.elapsed_time:.2f}")
-
-        sum429 = 0
-        sum509 = 0
-
-        for result in self.results:
-            if result.status_code == 429:
-                sum429 += 1
-            elif result.status_code == 509:
-                sum509 += 1
-
-        if sum429 != 0:
-            Log.info(f"Requests terminated with '{RESPONSE_STATUS[429]}' = {sum429}")
-        if sum509 != 0:
-            Log.info(f"Requests terminated with '{RESPONSE_STATUS[509]}' = {sum509}")
-        if self.failed_req - sum509 - sum509 > 0:
-            Log.info(
-                f"Requests terminated by connection error = {self.failed_req - sum429 - sum509}"
-            )
-
-    def signal_handler(self, sig, frame):  # type: ignore
+    def __signal_handler(self, sig, frame):  # type: ignore
         Log.error("Ctrl + C pressed. Exiting...")
 
         self.exit_flag.set()
@@ -239,3 +262,6 @@ class RateLimitTest:
             future.cancel()
 
         sys.exit(0)
+
+
+# endregion
