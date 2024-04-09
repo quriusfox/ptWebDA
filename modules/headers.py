@@ -3,7 +3,7 @@ import requests
 
 from typing import NamedTuple
 from .helpers import Log
-from .basemodule import BaseModule
+from .basemodule import BaseModule, PTVuln
 
 # region Constants
 INFO_HEADERS: list[str] = [
@@ -69,18 +69,6 @@ class HeadersResults(NamedTuple):
     missing_headers: list[Header]
     headers_leaking_info: list[Header]
     cache_headers: list[Header]
-
-
-class PTVuln(NamedTuple):
-    """
-    Structure holds information that are Penterep compatible and are later serialized into JSON.
-    This ensures Penterep platform compatibility.
-
-    """
-
-    code: str
-    request: bytes
-    response: bytes
 
 
 # endregion
@@ -162,8 +150,8 @@ class HeadersTest(BaseModule[HeadersResults]):
             response: requests.Response = requests.Session().send(self.prepared_request.prepare())
 
             # Save request and response data for the PTVuln stucture
-            self.__save_request_text(response.request)
-            self.__save_response_text(response)
+            self.save_request_text(response.request)
+            self.save_response_text(response)
 
             # Normalize the response headers to lowercase
             for key, value in response.headers.items():
@@ -233,29 +221,6 @@ class HeadersTest(BaseModule[HeadersResults]):
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore
         raise NotImplementedError
-
-    def __save_request_text(self, request: requests.PreparedRequest) -> None:
-        """
-        Save the request for PTVuln structure.
-        """
-        if request.method is None or request.url is None:
-            return None
-
-        self.request_text = (request.method + " " + request.url + " HTTP/1.1\r\n").encode()
-        self.request_text += (
-            "".join([f"{k}: {v}\r\n" for k, v in request.headers.items()])
-        ).encode()
-        self.request_text += "\r\n".encode()
-
-    def __save_response_text(self, response: requests.Response):
-        """
-        Save the reponse for PTVuln structure.
-        """
-        status_line = f"HTTP/{response.raw.version} {response.status_code} {response.reason}\r\n"
-        headers = "".join([f"{k}: {v}\r\n" for k, v in response.headers.items()])
-
-        # Combine status line and headers
-        self.response_text = (status_line + headers).encode()
 
 
 # endregion
