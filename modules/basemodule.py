@@ -90,5 +90,6 @@ class BaseModule[T](ABC):
                 )
         else:
             prepared_request = requests.Request("GET", self.target)
+            prepared_request.headers["User-Agent"] = "Penterep Tools"
 
         return prepared_request

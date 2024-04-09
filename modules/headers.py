@@ -6,6 +6,30 @@ from .helpers import Log
 from .basemodule import BaseModule
 
 # region Constants
+INFO_HEADERS: list[str] = [
+    "server",
+    "x-powered-by",
+    "x-aspnet-version",
+    "x-aspnetmvc-version",
+]
+
+MISSING_HEADERS: list[str] = [
+    "content-security-policy",
+    "x-frame-options",
+    "x-content-type-options",
+    "referrer-policy",
+    "strict-transport-security",
+    "permissions-policy",
+]
+
+CACHE_HEADERS: list[str] = [
+    "cache-control",
+    "pragma",
+    "last-modified",
+    "expires",
+    "etag",
+]
+
 PT_VULN_CODES: dict[str, str] = {
     # Missing headers:
     "content-security-policy": "PTV-WEB-MISSINGHEADER-CSP",
@@ -92,30 +116,6 @@ class HeadersTest(BaseModule[HeadersResults]):
         """
         super().__init__(target, request_file_path, https)
 
-        self.INFO_HEADERS: list[str] = [
-            "server",
-            "x-powered-by",
-            "x-aspnet-version",
-            "x-aspnetmvc-version",
-        ]
-
-        self.MISSING_HEADERS: list[str] = [
-            "content-security-policy",
-            "x-frame-options",
-            "x-content-type-options",
-            "referrer-policy",
-            "strict-transport-security",
-            "permissions-policy",
-        ]
-
-        self.CACHE_HEADERS: list[str] = [
-            "cache-control",
-            "pragma",
-            "last-modified",
-            "expires",
-            "etag",
-        ]
-
         # Penterep compatibility
         self.request_text: bytes = b""
         self.response_text: bytes = b""
@@ -170,19 +170,19 @@ class HeadersTest(BaseModule[HeadersResults]):
                 lowercase_headers[key.lower()] = value
 
             # Collect headers that are missing and should be implemented
-            for header in self.MISSING_HEADERS:
+            for header in MISSING_HEADERS:
                 if header not in lowercase_headers:
                     res_missing_headers.append(Header(header, PT_VULN_CODES[header], None))
 
             # Collect headers that are present and potentially contain sensitive infomarion
-            for header in self.INFO_HEADERS:
+            for header in INFO_HEADERS:
                 if header in lowercase_headers:
                     res_headers_leaking_info.append(
                         Header(header, PT_VULN_CODES[header], lowercase_headers[header])
                     )
 
             # Collect headers that are present and potentially contain useful caching information
-            for header in self.CACHE_HEADERS:
+            for header in CACHE_HEADERS:
                 if header in lowercase_headers:
                     res_cache_headers.append(Header(header, None, lowercase_headers[header]))
 
