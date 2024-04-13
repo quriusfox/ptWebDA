@@ -1,5 +1,5 @@
 import re
-import inspect
+import argparse
 import requests
 
 from requests.structures import CaseInsensitiveDict
@@ -7,124 +7,195 @@ from bs4 import BeautifulSoup
 from typing import NamedTuple
 
 from .helpers import Log
-from .http import HTTPRequest, HTTPRequestParser
+from .basemodule import BaseModule, PTVuln
 
-CSP_HEADERS = {"content-security-policy", "x-content-security-policy", "x-webkit-csp"}
+# region Constants
+CSP_HEADERS: list[str] = ["content-security-policy", "x-content-security-policy", "x-webkit-csp"]
+# endregion
 
 
+# region Structures
 class Html:
+    """
+    This class represents a content of a web page that is a result of a HTTP request and later used
+    for HTML arsing with BeautifulSoup and analysis of a CSP configuration within HTML code.
+    """
+
     def __init__(self, url: str, content: str) -> None:
+        """
+        Constructor for the Html response object.
+
+        Args:
+            url (str): URL of the web page/endpoint.
+            content (str): String representation of the HTML content of the returned page (later
+            parsed with BeautifulSoup)
+        """
         self.url: str = url
         self.content = content
         self.soup_body = BeautifulSoup(self.content, "html.parser")
 
 
 class Response(NamedTuple):
+    """
+    Structure representing the response to the HTML request. This structure strips the
+    requests.Request object off the unnecessary data and adds the Html object for HTML code parsing.
+    """
+
     headers: CaseInsensitiveDict[str]
     html: Html
 
 
 class CSPDirective(NamedTuple):
+    """
+    Simple structure representing the CSP directive and a indication whether the configuration
+    is considered dangerous.
+    """
+
     name: str
     content: str
-    source: str
     dangerous: bool
 
 
-class CSPTest:
+class CSPResult(NamedTuple):
+    """
+    Structure holds lists of evaluated CSP directives from both HTTP headers and HTML source code.
+    """
+
+    csp_headers: list[CSPDirective] | None
+    csp_html: list[CSPDirective] | None
+
+
+# endregion
+
+
+# region Main module class
+class CSPTest(BaseModule[CSPResult]):
+    """
+    This class represents the CSP module. This module evaluates security configuration
+    of Content Security Policy contained in both HTTP headers and HTML source code via
+    <meta http-equiv...> tags that are returned (or not returned) by the web server. The module
+    parses both HTTP headers and HTML reponse body and searches for the CSP configuraton. Then, the
+    analysis is performed. Module's main goal is to identify such a configuration that would allow
+    a penetration tester to perform attacks such as XSS and similar.
+
+    Args:
+        BaseModule (_type_): This class is a child class to the BaseModule class. The test returns
+        a structure of type "CSPResult".
+    """
+
     def __init__(
         self, target: str | None, request_file_path: str | None = None, https: bool = True
     ) -> None:
-        self.target = target
-        self.http_request: HTTPRequest | None = None
+        """
+        Constructor for the CSP module, mainly consisting of the target's initial setup.
 
-        if self.target is None:
-            if request_file_path:
-                parser = HTTPRequestParser(request_file_path, https)
-                self.http_request = parser.parse()
+        Args:
+            target (str | None): URL of the target e.g. https://www.example.com/login
+            request_file_path (str | None, optional): Path to a file with HTTP request exported
+            e.g. from Burp Suite. Defaults to None as the primary method is "target".
+            https (bool, optional): Indication of whether the request from the file is supposed to
+            be sent via HTTPS. Defaults to True.
+        """
+        super().__init__(target, request_file_path, https)
 
-        self.csp_directives: list[CSPDirective] = []
+        # Penterep compatibility
+        self.request_text: bytes = b""
+        self.response_text: bytes = b""
+
+        # Results
+        self.results: CSPResult | None = None
 
     def run(self):
-        self.test_info()
-        Log.progress("Analyzing CSP directives")
+        self.print_info()
+        self.results = self.test()
+        self.evaluate()
+        self.print_results()
 
-        self.test()
-
-    def test_info(self):
+    def print_info(self):
+        """
+        Provides basic information about current test's setup parameters.
+        """
         Log.info(f"Test info:\n")
         print("\tTest name : CSPTest")
         print(f"\tTarget    : {self.target}\n")
 
-    def test(self):
-        try:
-            response = requests.Response()
+    def test(self) -> CSPResult:
+        csp_headers: list[CSPDirective] | None = None
+        csp_html: list[CSPDirective] | None = None
 
-            if self.http_request is not None:
-                response = requests.get(
-                    (
-                        "https://" + self.http_request.host + self.http_request.path
-                        if self.http_request.https
-                        else "http://" + self.http_request.host + self.http_request.path
-                    ),
-                    cookies=self.http_request.cookies,
-                    data=self.http_request.data,
-                )
-            else:
-                if self.target is not None:
-                    response = requests.get(self.target)
-                else:
-                    raise ValueError("Target cannot be 'None'")
+        try:
+            # Send the final prepared request in the constructor
+            response: requests.Response = requests.Session().send(self.prepared_request.prepare())
+
+            # Save request and response data for the PTVuln stucture
+            self.save_request_text(response.request)
+            self.save_response_text(response)
 
             r = Response(response.headers, Html(response.url, response.text))
 
-            self.check_csp_headers(r)
-            self.check_csp_html(r)
-
+            csp_headers = self.__check_csp_headers(r)
+            csp_html = self.__check_csp_html(r)
         except requests.exceptions.RequestException as e:
             Log.error(f"Error occurred: {e}")
 
-        Log.success("Test finished successfully")
+        return CSPResult(csp_headers, csp_html)
 
-    def check_csp_headers(self, response: Response) -> None:
-        directives: list[str] = []
+    def evaluate(self) -> None:
+        """
+        Function takes the data from CSPResults structure and transforms it to Penterep
+        compatible PTVuln structure.
+        """
+        if self.results is None:
+            return None
 
-        for key, value in response.headers.items():
-            if key.lower() in CSP_HEADERS:
-                directives = value.split("; ")
+        res: list[PTVuln] = [PTVuln("PTV-WEB-CSPMISCONFIG", self.request_text, self.response_text)]
 
-        if len(directives) == 0:
-            Log.info("Server did not respond with any CSP headers!")
-            return
+        self.evaluation = res
 
-        self.csp_directives = self.eval_directives(directives)
+    def print_results(self) -> None:
+        """
+        Function prints the module's output. This does not have any impact on the Penterep
+        integration. This function solely prints output to the terminal for the penetration tester.
+        """
+        if self.results is None:
+            Log.error("Results cannot be printed! Value of results is None")
+            return None
 
-    def check_csp_html(self, response: Response) -> None:
-        directives: list[str] = []
+        if self.results.csp_headers is None and self.results.csp_html is None:
+            return None
 
-        for meta_http in response.html.soup_body.find_all(
-            "meta", attrs={"http-equiv": True, "content": True}
-        ):
+        Log.info("CSP directies:")
 
-            for header in CSP_HEADERS:
-                if meta_http["http-equiv"].lower().strip() == header:
-                    directives = meta_http["content"].split(";")
+        for csp in self.results:
+            if csp is None:
+                continue
 
-        if len(directives) == 0:
-            Log.info("HTML content does not include any CSP configuration!")
+            for directive in csp:
+                if directive.dangerous:
+                    Log.error(f"{directive.name} {directive.content}")
+                else:
+                    Log.info(f"{directive.name} {directive.content}")
 
-        self.csp_directives = self.eval_directives(directives)
+    def json(self) -> None:
+        raise NotImplementedError
 
-    def eval_directives(self, directives: list[str]) -> list[CSPDirective]:
+    @staticmethod
+    def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore
+        raise NotImplementedError
+
+    def __eval_directives(self, directives: list[str]) -> list[CSPDirective]:
         eval_directives: list[CSPDirective] = []
 
         for directive in directives:
+            name: str = ""
+            content: str = ""
+
             directive = directive.lower()
 
             unsafe = "unsafe" in directive
             wildcard = "*" in directive
 
-            # This reges should catch directives like "data:", "blob:" etc. Basically those that
+            # This regex should catch directives like "data:", "blob:" etc. Basically those that
             # do not define any restrictions
             too_permissive = re.findall(
                 "[a-z]*:\\s|[a-z]*:\\s[a-z]*:\\s|(?!.*:[/]{2})[a-z]*:",
@@ -133,17 +204,48 @@ class CSPTest:
 
             splitted = directive.split(" ", 1)
             name = splitted[0]
-            content = splitted[1]
 
-            # Get name of the caller function to determine the source of the CSP directive
-            caller = inspect.stack()[1].function.split("_")[2]
+            if len(splitted) > 1:
+                content = splitted[1]
 
             if unsafe or wildcard or any(too_permissive):
-                Log.warning(directive)
-                eval_directives.append(CSPDirective(name, content, caller, True))
+                # Log.warning(directive)
+                eval_directives.append(CSPDirective(name, content, True))
                 continue
             else:
-                Log.info(directive)
-                eval_directives.append(CSPDirective(name, content, caller, False))
+                # Log.info(directive)
+                eval_directives.append(CSPDirective(name, content, False))
 
         return eval_directives
+
+    def __check_csp_headers(self, response: Response) -> list[CSPDirective] | None:
+        directives: list[str] = []
+
+        for key, value in response.headers.items():
+            if key.lower() in CSP_HEADERS:
+                directives = value.split("; ")
+
+        if len(directives) == 0:
+            Log.info("Server did not respond with any CSP headers!")
+            return None
+
+        return self.__eval_directives(directives)
+
+    def __check_csp_html(self, response: Response) -> list[CSPDirective] | None:
+        directives: list[str] = []
+
+        for meta_http in response.html.soup_body.find_all(
+            "meta", attrs={"http-equiv": True, "content": True}
+        ):
+            for header in CSP_HEADERS:
+                if meta_http["http-equiv"].lower().strip() == header:
+                    directives = meta_http["content"].split(";")
+
+        if len(directives) == 0:
+            Log.info("HTML content does not include any CSP configuration!")
+            return None
+
+        self.__eval_directives(directives)
+
+
+# endregion

@@ -91,9 +91,7 @@ class HeadersTest(BaseModule[HeadersResults]):
         self, target: str | None, request_file_path: str | None = None, https: bool = True
     ) -> None:
         """
-        Constructor for the HTTP headers module. At first the target setup is performed. Then the
-        constructor defines some constat lists of HTTP headers that are used throughout the module's
-        runtime.
+        Constructor for the HTTP headers module, mainly consisting of the target's initial setup.
 
         Args:
             target (str | None): URL of the target e.g. https://www.example.com/login
@@ -110,7 +108,6 @@ class HeadersTest(BaseModule[HeadersResults]):
 
         # Results
         self.results: HeadersResults | None = None
-        self.evaluation: list[PTVuln] | None = None
 
     def run(self) -> None:
         self.print_info()

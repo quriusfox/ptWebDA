@@ -50,6 +50,8 @@ class BaseModule[T](ABC):
         # Values for preparing a requests.Request() object
         self.prepared_request = self.__prepare_request(request_file_path, https)
 
+        self.evaluation: list[PTVuln] | None = None
+
     def save_request_text(self, request: requests.PreparedRequest) -> None:
         """
         Save the request for PTVuln structure.
