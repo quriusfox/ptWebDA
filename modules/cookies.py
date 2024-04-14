@@ -87,7 +87,9 @@ class CookieTest(BaseModule[CookieResult]):
 
         try:
             # Send the final prepared request in the constructor
-            response: requests.Response = requests.Session().send(self.prepared_request.prepare())
+            response: requests.Response = requests.Session().send(
+                self.prepared_request.prepare(), proxies=self.proxies, verify=self.verify
+            )
 
             # Save request and response data for the PTVuln stucture
             self.save_request_text(response.request)

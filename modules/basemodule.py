@@ -47,6 +47,11 @@ class BaseModule[T](ABC):
 
         self.target = target
 
+        proxy_url = "http://127.0.0.1:8080"
+
+        self.proxies: dict[str, str] = {"http": proxy_url, "https": proxy_url}
+        self.verify = False
+
         # Values for preparing a requests.Request() object
         self.prepared_request = self.__prepare_request(request_file_path, https)
 
@@ -98,15 +103,16 @@ class BaseModule[T](ABC):
             if request_file_path:
                 parser = HTTPRequestParser(request_file_path, https)
                 http_request: HTTPRequest = parser.parse()
+                print(http_request)
 
                 url = (
-                    "https://" + http_request.host + http_request.path
+                    "https://" + http_request.url
                     if http_request.https
-                    else "http://" + http_request.host + http_request.path
+                    else "http://" + http_request.url
                 )
 
                 prepared_request = requests.Request(
-                    http_request.method, url, data=http_request.data, cookies=http_request.cookies
+                    http_request.method, url, data=http_request.data, headers=http_request.headers
                 )
         else:
             prepared_request = requests.Request("GET", self.target)

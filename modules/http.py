@@ -4,11 +4,9 @@ from typing import NamedTuple
 
 class HTTPRequest(NamedTuple):
     method: str
-    host: str
-    path: str
+    url: str
     https: bool
-    user_agent: str | None
-    cookies: dict[str, str] | None
+    headers: dict[str, str]
     data: str | None
 
 
@@ -45,8 +43,6 @@ class HTTPRequestParser:
         headers: dict[str, str] = self.parse_headers()
 
         host: str | None = headers.get("Host")
-        user_agent: str | None = headers.get("User-Agent")
-        cookies: dict[str, str] | None = self.parse_cookies(headers.get("Cookie"))
 
         if host is None:
             raise ValueError("Host header not found")
@@ -58,7 +54,7 @@ class HTTPRequestParser:
         if content_length > 0:
             data = self.rfile.read(content_length).decode("utf-8")
 
-        return HTTPRequest(method, host, path, self.https, user_agent, cookies, data)
+        return HTTPRequest(method, host + path, self.https, headers, data)
 
     def parse_headers(self) -> dict[str, str]:
         """
@@ -81,21 +77,21 @@ class HTTPRequestParser:
 
         return headers
 
-    def parse_cookies(self, cookies: str | None) -> dict[str, str] | None:
-        """
-        Parses cookies from a raw line from the currently parsed HTTP request.
+    # def parse_cookies(self, cookies: str | None) -> dict[str, str] | None:
+    #     """
+    #     Parses cookies from a raw line from the currently parsed HTTP request.
 
-        Returns:
-            dict[str, str]: _description_
-        """
-        if cookies is None:
-            return None
+    #     Returns:
+    #         dict[str, str]: _description_
+    #     """
+    #     if cookies is None:
+    #         return None
 
-        cookie_dict: dict[str, str] = {}
+    #     cookie_dict: dict[str, str] = {}
 
-        if cookies:
-            for cookie in cookies.split(";"):
-                key, value = cookie.split("=", 1)
-                cookie_dict[key.strip()] = value.strip()
+    #     if cookies:
+    #         for cookie in cookies.split(";"):
+    #             key, value = cookie.split("=", 1)
+    #             cookie_dict[key.strip()] = value.strip()
 
-        return cookie_dict
+    #     return cookie_dict

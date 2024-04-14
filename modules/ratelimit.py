@@ -214,7 +214,9 @@ class RateLimitTest(BaseModule[RateLimitResult]):
             start_time = time.time()
 
             # Send the final prepared request in the constructor
-            response = requests.Session().send(self.prepared_request.prepare())
+            response = requests.Session().send(
+                self.prepared_request.prepare(), proxies=self.proxies, verify=self.verify
+            )
 
             end_time = time.time()
             response_time = (end_time - start_time) * 1000
