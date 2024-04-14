@@ -34,7 +34,7 @@ class BaseModule[T](ABC):
         self, target: str | None, request_file_path: str | None = None, https: bool = True
     ) -> None:
         """
-        In the constructure we define all parameters that are the same among all modules.
+        In the constructor we define all parameters that are the same among all modules.
 
         Args:
             target (str | None): URL of the target e.g. https://www.example.com/login
@@ -50,6 +50,12 @@ class BaseModule[T](ABC):
         # Values for preparing a requests.Request() object
         self.prepared_request = self.__prepare_request(request_file_path, https)
 
+        # Penterep compatibility
+        self.request_text: bytes = b""
+        self.response_text: bytes = b""
+
+        # Results
+        self.results: T | None = None
         self.evaluation: list[PTVuln] | None = None
 
     def save_request_text(self, request: requests.PreparedRequest) -> None:
