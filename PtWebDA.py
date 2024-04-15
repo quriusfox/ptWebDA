@@ -1,5 +1,5 @@
 import argparse
-from modules import RateLimitTest, HeadersTest, CSPTest, CookieTest, TLSTest, Log
+from modules import RateLimitTest, HeadersTest, CSPTest, CookieTest, Log
 
 
 def main() -> None:
@@ -28,9 +28,6 @@ def main() -> None:
     elif args.test_type == "cookies":
         test_cookies = CookieTest(args.url, args.file)
         test_cookies.run()
-    elif args.test_type == "tls":
-        test = TLSTest(args.url, args.file)
-        test.run()
     elif args.test_type == "all":
         test_headers = HeadersTest(args.url, args.file)
         test_headers.run()
