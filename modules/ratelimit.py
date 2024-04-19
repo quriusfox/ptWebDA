@@ -54,7 +54,7 @@ class RateLimitTest(BaseModule[RateLimitResult]):
         proxy: str | None,
         https: bool = True,
         num_threads: int = 50,
-        total_requests: int = 10000,
+        total_requests: int = 1000,
     ) -> None:
         """
         Constructor for the HTTP headers module. At first the target setup is performed. Tester can
@@ -164,6 +164,13 @@ class RateLimitTest(BaseModule[RateLimitResult]):
         Prints the information about the test's results.
         """
         print(" " * 200, end="\r")
+
+        if self.result is None:
+            return None
+
+        if not self.result.rate_limited:
+            Log.success("No rate limit detected!")
+            return None
 
         Log.error(
             f"Too many failed requests ({self.failed_req} / {self.success_req + self.failed_req})"

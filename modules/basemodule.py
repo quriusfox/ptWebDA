@@ -108,7 +108,6 @@ class BaseModule[T](ABC):
             if request_file_path:
                 parser = HTTPRequestParser(request_file_path, https)
                 http_request: HTTPRequest = parser.parse()
-                print(http_request)
 
                 url = (
                     "https://" + http_request.url
