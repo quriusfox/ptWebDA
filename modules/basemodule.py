@@ -31,7 +31,11 @@ class BaseModule[T](ABC):
     """
 
     def __init__(
-        self, target: str | None, request_file_path: str | None = None, https: bool = True
+        self,
+        target: str | None,
+        request_file_path: str | None,
+        proxy: str | None,
+        https: bool = True,
     ) -> None:
         """
         In the constructor we define all parameters that are the same among all modules.
@@ -46,10 +50,11 @@ class BaseModule[T](ABC):
         super().__init__()
 
         self.target = target
+        self.proxies: dict[str, str] | None = None
 
-        proxy_url = "http://127.0.0.1:8080"
+        if proxy:
+            self.proxies = {"http": proxy, "https": proxy}
 
-        self.proxies: dict[str, str] = {"http": proxy_url, "https": proxy_url}
         self.verify = False
 
         # Values for preparing a requests.Request() object

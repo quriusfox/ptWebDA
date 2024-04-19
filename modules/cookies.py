@@ -57,7 +57,11 @@ class CookieTest(BaseModule[CookieResult]):
     """
 
     def __init__(
-        self, target: str | None, request_file_path: str | None = None, https: bool = True
+        self,
+        target: str | None,
+        request_file_path: str | None,
+        proxy: str | None,
+        https: bool = True,
     ) -> None:
         """
         Constructor for the Cookeis module, mainly consisting of the target's initial setup.
@@ -69,7 +73,7 @@ class CookieTest(BaseModule[CookieResult]):
             https (bool, optional): Indication of whether the request from the file is supposed to
             be sent via HTTPS. Defaults to True.
         """
-        super().__init__(target, request_file_path, https)
+        super().__init__(target, request_file_path, proxy, https)
 
     def run(self):
         self.print_info()

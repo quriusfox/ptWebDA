@@ -50,7 +50,8 @@ class RateLimitTest(BaseModule[RateLimitResult]):
     def __init__(
         self,
         target: str | None,
-        request_file_path: str | None = None,
+        request_file_path: str | None,
+        proxy: str | None,
         https: bool = True,
         num_threads: int = 50,
         total_requests: int = 10000,
@@ -67,7 +68,7 @@ class RateLimitTest(BaseModule[RateLimitResult]):
             num_threads (int, optional): _description_. Defaults to 20.
             total_requests (int, optional): _description_. Defaults to 10000.
         """
-        super().__init__(target, request_file_path, https)
+        super().__init__(target, request_file_path, proxy, https)
 
         # Values from constructor
         self.num_threads: int = num_threads

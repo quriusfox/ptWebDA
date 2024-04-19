@@ -88,7 +88,11 @@ class HeadersTest(BaseModule[HeadersResults]):
     """
 
     def __init__(
-        self, target: str | None, request_file_path: str | None = None, https: bool = True
+        self,
+        target: str | None,
+        request_file_path: str | None,
+        proxy: str | None,
+        https: bool = True,
     ) -> None:
         """
         Constructor for the HTTP headers module, mainly consisting of the target's initial setup.
@@ -100,7 +104,7 @@ class HeadersTest(BaseModule[HeadersResults]):
             https (bool, optional): Indication of whether the request from the file is supposed to
             be sent via HTTPS. Defaults to True.
         """
-        super().__init__(target, request_file_path, https)
+        super().__init__(target, request_file_path, proxy, https)
 
         # Penterep compatibility
         self.request_text: bytes = b""
