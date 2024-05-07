@@ -8,7 +8,7 @@ import concurrent.futures
 from threading import Event
 from typing import NamedTuple
 
-from .helpers import Log
+from .utils.helpers import Log
 from .basemodule import BaseModule
 
 # region Constants
@@ -202,7 +202,26 @@ class RateLimitTest(BaseModule[RateLimitResult]):
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore
-        raise NotImplementedError
+        modname = __name__.split(".")[-1]
+        parser = subparsers.add_parser(modname, add_help=True)  # type: ignore
+
+        if not isinstance(parser, argparse.ArgumentParser):
+            raise TypeError  # IDE typing
+
+        parser.add_argument("-u", "--url", help="URL to check headers for")
+        parser.add_argument(
+            "-f", "--file", "-f", help="Path to the file used by the modules (optional)"
+        )
+        parser.add_argument(
+            "-p", "--proxy", "-p", help="Proxy URL to use (e.g., http://127.0.0.1:8080)"
+        )
+        parser.add_argument(
+            "-s", "--https", action="store_true", help="Use HTTPS. (only used with -f)"
+        )
+        parser.add_argument("-t", "--threads", help="Number of threads to use. (default 10)")
+        parser.add_argument(
+            "-n", "--num-requests", help="Number of requests to use. (default 1000)"
+        )
 
     def __make_request(self, path: str | None = None) -> Response | None:
         """

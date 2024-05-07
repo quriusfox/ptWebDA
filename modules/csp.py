@@ -1,4 +1,3 @@
-import re
 import argparse
 import requests
 
@@ -6,7 +5,7 @@ from requests.structures import CaseInsensitiveDict
 from bs4 import BeautifulSoup
 from typing import NamedTuple
 
-from .helpers import Log
+from .utils.helpers import Log
 from .basemodule import BaseModule, PTVuln
 
 # region Constants
@@ -52,7 +51,7 @@ class CSPDirective(NamedTuple):
     """
 
     name: str
-    content: str
+    content: str | None
     dangerous: bool
 
 
@@ -119,7 +118,7 @@ class CSPTest(BaseModule[CSPResult]):
         """
         Provides basic information about current test's setup parameters.
         """
-        Log.info(f"Test info:\n")
+        Log.progress(f"Test info:\n")
         print("\tTest name : CSPTest")
         print(f"\tTarget    : {self.target}\n")
 
@@ -187,39 +186,62 @@ class CSPTest(BaseModule[CSPResult]):
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore
-        raise NotImplementedError
+        modname = __name__.split(".")[-1]
+        parser = subparsers.add_parser(modname, add_help=True)  # type: ignore
+
+        if not isinstance(parser, argparse.ArgumentParser):
+            raise TypeError  # IDE typing
+
+        parser.add_argument("-u", "--url", help="URL to check headers for")
+        parser.add_argument(
+            "-f", "--file", "-f", help="Path to the file used by the modules (optional)"
+        )
+        parser.add_argument(
+            "-p", "--proxy", "-p", help="Proxy URL to use (e.g., http://127.0.0.1:8080)"
+        )
+        parser.add_argument(
+            "-s", "--https", action="store_true", help="Use HTTPS. (only used with -f)"
+        )
 
     def __eval_directives(self, directives: list[str]) -> list[CSPDirective]:
         eval_directives: list[CSPDirective] = []
+
+        required_directives = {"object-src", "default-src", "base-uri"}
+        present_directives = {directive.split()[0] for directive in directives}
+        missing_directives = required_directives - present_directives
+
+        # Append missing directives
+        for directive_name in missing_directives:
+            eval_directives.append(CSPDirective(directive_name, None, True))
 
         for directive in directives:
             name: str = ""
             content: str = ""
 
             directive = directive.lower()
-
-            unsafe = "unsafe" in directive
-            wildcard = "*" in directive
-
-            # This regex should catch directives like "data:", "blob:" etc. Basically those that
-            # do not define any restrictions
-            too_permissive = re.findall(
-                "[a-z]*:\\s|[a-z]*:\\s[a-z]*:\\s|(?!.*:[/]{2})[a-z]*:",
-                directive,
-            )
-
             splitted = directive.split(" ", 1)
             name = splitted[0]
 
             if len(splitted) > 1:
                 content = splitted[1]
 
-            if unsafe or wildcard or any(too_permissive):
-                # Log.warning(directive)
+            # Conditions for evaluation
+            if "unsafe" in directive:
+                eval_directives.append(CSPDirective(name, content, True))
+                continue
+
+            if name == "script-src" and "data:" in content:
+                eval_directives.append(CSPDirective(name, content, True))
+                continue
+
+            if "strict-dynamic" in directive:
+                eval_directives.append(CSPDirective(name, content, True))
+                continue
+
+            if "*" in directive:
                 eval_directives.append(CSPDirective(name, content, True))
                 continue
             else:
-                # Log.info(directive)
                 eval_directives.append(CSPDirective(name, content, False))
 
         return eval_directives

@@ -5,41 +5,66 @@ from modules import RateLimitTest, HeadersTest, CSPTest, CookieTest, Log
 
 urllib3.disable_warnings()
 
+MODULES = {
+    "ratelimit": RateLimitTest,
+    "headers": HeadersTest,
+    "csp": CSPTest,
+    "cookies": CookieTest,
+}
+
+# MODULES = {
+#     "ratelimit": RateLimitTest,
+# }
+
 
 def main() -> None:
-    Log.banner()
 
-    parser = argparse.ArgumentParser(description="PtWebDA dynamic analysis web assessment toolkit")
-    parser.add_argument(
-        "test_type",
-        choices=["headers", "ratelimit", "csp", "cookies", "all"],
-        help="Type of test to perform",
+    parser = argparse.ArgumentParser(
+        description="PtWebDA dynamic analysis web assessment toolkit", add_help=True
     )
-    parser.add_argument("--url", help="URL to check headers for")
-    parser.add_argument("--file", "-f", help="Path to the file used by the modules (optional)")
-    parser.add_argument("--proxy", "-p", help="Proxy URL to use (e.g., http://127.0.0.1:8080)")
-    parser.add_argument("--https", "-s", help="Use HTTPS")
 
+    parser.add_argument(
+        "-j", "--json", action="store_true", help="Use Penterep JSON output format."
+    )
+
+    # Subparser for every application module
+    subparsers = parser.add_subparsers(required=True, dest="module")
+
+    for module in MODULES.values():
+        module.add_subparser(subparsers)  # type: ignore
+
+    # RateLimitTest.add_subparser(subparsers)
+
+    # print(subparsers)
     args = parser.parse_args()
+
+    Log.banner(args.json)
 
     https = False
 
     if args.https:
         https = True
 
-    if args.test_type == "headers":
+    if args.module == "headers":
         test_headers = HeadersTest(args.url, args.file, args.proxy, https)
         test_headers.run()
-    elif args.test_type == "ratelimit":
-        test = RateLimitTest(args.url, args.file, args.proxy, https)
+    elif args.module == "ratelimit":
+        test = RateLimitTest(
+            args.url,
+            args.file,
+            args.proxy,
+            https,
+            num_threads=int(args.threads),
+            total_requests=int(args.num_requests),
+        )
         test.run()
-    elif args.test_type == "csp":
+    elif args.module == "csp":
         test_csp = CSPTest(args.url, args.file, args.proxy, https)
         test_csp.run()
-    elif args.test_type == "cookies":
+    elif args.module == "cookies":
         test_cookies = CookieTest(args.url, args.file, args.proxy, https)
         test_cookies.run()
-    elif args.test_type == "all":
+    elif args.module == "all":
         test_headers = HeadersTest(args.url, args.file, args.proxy, https)
         test_headers.run()
         test_ratelimit = RateLimitTest(args.url, args.file, args.proxy, https)

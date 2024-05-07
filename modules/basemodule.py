@@ -3,7 +3,7 @@ import requests
 
 from abc import ABC, abstractmethod
 from typing import NamedTuple
-from .http import HTTPRequest, HTTPRequestParser
+from .utils.http import HTTPRequest, HTTPRequestParser
 
 
 # region Structures

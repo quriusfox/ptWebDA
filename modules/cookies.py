@@ -3,7 +3,7 @@ import argparse
 import requests
 
 from typing import NamedTuple
-from .helpers import Log
+from .utils.helpers import Log
 from .basemodule import BaseModule, PTVuln
 
 # region Constants
@@ -21,7 +21,7 @@ PT_VULN_CODES: dict[str, str] = {
 # region Structures
 class SameSiteAttr(NamedTuple):
     present: bool
-    value: str
+    value: str | None
 
 
 class Cookie(NamedTuple):
@@ -82,7 +82,7 @@ class CookieTest(BaseModule[CookieResult]):
         self.print_results()
 
     def print_info(self):
-        Log.info(f"Test info:\n")
+        Log.progress(f"Test info:\n")
         print("\tTest name : CookeisTest")
         print(f"\tTarget    : {self.target}\n")
 
@@ -100,10 +100,6 @@ class CookieTest(BaseModule[CookieResult]):
             self.save_response_text(response)
 
             all_cookies = self.__parse_cookies(response)
-
-            for cookie in all_cookies:
-                self.__eval_cookie(cookie)
-
         except requests.exceptions.RequestException as e:
             Log.error(f"Error occurred: {e}")
 
@@ -152,26 +148,47 @@ class CookieTest(BaseModule[CookieResult]):
 
         Log.info(f"Checking cookies returned from the server:")
         for cookie in self.results.cookies:
+            Log.info(f"Found cookie: {cookie.name}")
 
             if not cookie.secure:
-                Log.warning(f"Cookie {cookie.name} does not have the secure flag set!")
+                Log.error(f"Cookie {cookie.name} does not have the secure flag set!")
 
             if not cookie.http_only:
-                Log.warning(f"Cookie {cookie.name} is not HttpOnly!")
+                Log.error(f"Cookie {cookie.name} is not HttpOnly!")
 
             if not cookie.same_site.present:
-                Log.warning(f"Cookie {cookie.name} does not have SameSite attribute set")
+                Log.error(f"Cookie {cookie.name} does not have SameSite attribute set")
             else:
-                Log.warning(
-                    f"Cookie {cookie.name} has SameSite attribute set to: {cookie.same_site.value}"
-                )
+                if cookie.same_site.value == "strict":
+                    Log.info(
+                        f"Cookie {cookie.name} has SameSite attribute set to: {cookie.same_site.value}"
+                    )
+                else:
+                    Log.error(
+                        f"Cookie {cookie.name} has SameSite attribute set to: {cookie.same_site.value}"
+                    )
 
     def json(self) -> None:
         raise NotImplementedError
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore
-        raise NotImplementedError
+        modname = __name__.split(".")[-1]
+        parser = subparsers.add_parser(modname, add_help=True)  # type: ignore
+
+        if not isinstance(parser, argparse.ArgumentParser):
+            raise TypeError  # IDE typing
+
+        parser.add_argument("-u", "--url", help="URL to check headers for")
+        parser.add_argument(
+            "-f", "--file", "-f", help="Path to the file used by the modules (optional)"
+        )
+        parser.add_argument(
+            "-p", "--proxy", "-p", help="Proxy URL to use (e.g., http://127.0.0.1:8080)"
+        )
+        parser.add_argument(
+            "-s", "--https", action="store_true", help="Use HTTPS. (only used with -f)"
+        )
 
     def __parse_cookies(self, response: requests.Response) -> list[Cookie]:
         """
@@ -238,14 +255,6 @@ class CookieTest(BaseModule[CookieResult]):
             Log.info("HTTP response did not set any cookies!")
 
         return all_cookies
-
-    def __eval_cookie(self, cookie: Cookie) -> None:
-        """
-        Evaluates various security attributes of a given cookie.
-
-        Args:
-            cookie (Cookie): Cookie to evaluate
-        """
 
 
 # endregion
