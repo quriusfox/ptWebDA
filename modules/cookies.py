@@ -4,7 +4,7 @@ import requests
 
 from typing import NamedTuple
 from .utils.helpers import Log
-from .basemodule import BaseModule, PTVuln
+from .basemodule import BaseModule
 
 # region Constants
 PT_VULN_CODES: dict[str, str] = {
@@ -77,14 +77,17 @@ class CookieTest(BaseModule[CookieResult]):
 
     def run(self):
         self.print_info()
+        Log.progress("Running module")
         self.results = self.test()
-        self.evaluate()
-        self.print_results()
 
     def print_info(self):
         Log.progress(f"Test info:\n")
-        print("\tTest name : CookeisTest")
-        print(f"\tTarget    : {self.target}\n")
+        Log.print("Test name : CookiesTest")
+        Log.print(
+            f"Target:   : {self.target if self.target is not None else self.prepared_request.url}"
+        )
+        Log.print(f"HTTPS     : {self.https}")
+        Log.print(f"Proxies   : {self.proxies}\n")
 
     def test(self) -> CookieResult:
         all_cookies: list[Cookie] | None = None
@@ -105,36 +108,6 @@ class CookieTest(BaseModule[CookieResult]):
 
         return CookieResult(all_cookies)
 
-    def evaluate(self) -> None:
-        """
-        Function takes the data from CSPResults structure and transforms it to Penterep
-        compatible PTVuln structure.
-        """
-        if self.results is None:
-            return None
-
-        if self.results.cookies is None:
-            return None
-
-        res: list[PTVuln] = []
-
-        for cookie in self.results.cookies:
-            if not cookie.secure:
-                res.append(PTVuln(PT_VULN_CODES["secure"], self.request_text, self.response_text))
-            if not cookie.http_only:
-                res.append(PTVuln(PT_VULN_CODES["httponly"], self.request_text, self.response_text))
-            if not cookie.same_site.present:
-                res.append(PTVuln(PT_VULN_CODES["samesite"], self.request_text, self.response_text))
-            else:
-                if cookie.same_site.value == "None":
-                    res.append(
-                        PTVuln(
-                            PT_VULN_CODES["samesite-none"], self.request_text, self.response_text
-                        )
-                    )
-
-        self.evaluation = res
-
     def print_results(self) -> None:
         """
         Function prints the module's output. This does not have any impact on the Penterep
@@ -146,30 +119,70 @@ class CookieTest(BaseModule[CookieResult]):
         if self.results.cookies is None:
             return None
 
-        Log.info(f"Checking cookies returned from the server:")
+        Log.progress(f"Checking cookies returned from the server:")
         for cookie in self.results.cookies:
-            Log.info(f"Found cookie: {cookie.name}")
+            Log.success(f"Found cookie: {cookie.name}")
 
             if not cookie.secure:
-                Log.error(f"Cookie {cookie.name} does not have the secure flag set!")
+                Log.error(f"\tCookie '{cookie.name}' does not have the secure flag set!")
 
             if not cookie.http_only:
-                Log.error(f"Cookie {cookie.name} is not HttpOnly!")
+                Log.error(f"\tCookie '{cookie.name}' is not HttpOnly!")
 
             if not cookie.same_site.present:
-                Log.error(f"Cookie {cookie.name} does not have SameSite attribute set")
+                Log.error(f"\tCookie '{cookie.name}' does not have SameSite attribute set")
             else:
                 if cookie.same_site.value == "strict":
                     Log.info(
-                        f"Cookie {cookie.name} has SameSite attribute set to: {cookie.same_site.value}"
+                        f"\tCookie '{cookie.name}' has SameSite attribute set to: '{cookie.same_site.value}'"
                     )
                 else:
                     Log.error(
-                        f"Cookie {cookie.name} has SameSite attribute set to: {cookie.same_site.value}"
+                        f"\tCookie '{cookie.name}' has SameSite attribute set to: '{cookie.same_site.value}'"
                     )
 
-    def json(self) -> None:
-        raise NotImplementedError
+            # Log.print("")
+
+    def json(self) -> str | None:
+        """
+        Function iterates over the module's results and serializes them into
+        Penterep JSON structures.
+
+        Returns:
+            str | None: String representing the modules JSON output
+        """
+        if self.results is None:
+            return None
+
+        if self.results.cookies is None:
+            return None
+
+        for cookie in self.results.cookies:
+            if not cookie.secure:
+                self.ptjsonlib.add_vulnerability(
+                    PT_VULN_CODES["secure"], self.request_text.decode(), self.response_text.decode()
+                )
+            if not cookie.http_only:
+                self.ptjsonlib.add_vulnerability(
+                    PT_VULN_CODES["httponly"],
+                    self.request_text.decode(),
+                    self.response_text.decode(),
+                )
+            if not cookie.same_site.present:
+                self.ptjsonlib.add_vulnerability(
+                    PT_VULN_CODES["samesite"],
+                    self.request_text.decode(),
+                    self.response_text.decode(),
+                )
+            else:
+                if cookie.same_site.value == "None":
+                    self.ptjsonlib.add_vulnerability(
+                        PT_VULN_CODES["samesite-none"],
+                        self.request_text.decode(),
+                        self.response_text.decode(),
+                    )
+
+        return self.ptjsonlib.get_result_json()
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore

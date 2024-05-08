@@ -3,7 +3,7 @@ import requests
 
 from typing import NamedTuple
 from .utils.helpers import Log
-from .basemodule import BaseModule, PTVuln
+from .basemodule import BaseModule
 
 # region Constants
 INFO_HEADERS: list[str] = [
@@ -37,7 +37,7 @@ PT_VULN_CODES: dict[str, str] = {
     "x-content-type-options": "PTV-WEB-MISSINGHEADER-XCONTENTTYPEOPTIONS",
     "referrer-policy": "PTV-WEB-MISSINGHEADER-REFERRERPOLICY",
     "strict-transport-security": "PTV-WEB-MISSINGHEADER-HSTS",
-    "permissions-policy": "PTV-WEB-PERMISSIONSPOLICY",
+    "permissions-policy": "PTV-WEB-MISSINGHEADER-PERMISSIONSPOLICY",
     # Headers leaking information:
     "server": "PTV-WEB-LEAKINGHEADER-SERVER",
     "x-powered-by": "PTV-WEB-LEAKINGHEADER-XPOWEREDBY",
@@ -106,28 +106,25 @@ class HeadersTest(BaseModule[HeadersResults]):
         """
         super().__init__(target, request_file_path, proxy, https)
 
-        # Penterep compatibility
-        self.request_text: bytes = b""
-        self.response_text: bytes = b""
-
         # Results
         self.results: HeadersResults | None = None
 
     def run(self) -> None:
         self.print_info()
+        Log.progress("Running module")
         self.results = self.test()
-        self.evaluate()
-        self.print_results()
-
-        Log.success("Test finished successfully")
 
     def print_info(self) -> None:
         """
         Provides basic information about current test's setup parameters.
         """
         Log.progress(f"Test info:\n")
-        print("\tTest name : HeadersTest")
-        print(f"\tTarget    : {self.target}\n")
+        Log.print("Test name : HeadersTest")
+        Log.print(
+            f"Target:   : {self.target if self.target is not None else self.prepared_request.url}"
+        )
+        Log.print(f"HTTPS     : {self.https}")
+        Log.print(f"Proxies   : {self.proxies}\n")
 
     def test(self) -> HeadersResults:
         """
@@ -182,25 +179,6 @@ class HeadersTest(BaseModule[HeadersResults]):
 
         return HeadersResults(res_missing_headers, res_headers_leaking_info, res_cache_headers)
 
-    def evaluate(self) -> None:
-        """
-        Function takes the data from HeadersResults structure and transforms it to Penterep
-        compatible PTVuln structure.
-        """
-        if self.results is None:
-            return None
-
-        res: list[PTVuln] = []
-
-        for header in self.results.missing_headers:
-            if header.code is None:
-                Log.error(f"Header in findings {header.name} does not have a PT_VULN_CODE!")
-                continue
-
-            res.append(PTVuln(header.code, self.request_text, self.response_text))
-
-        self.evaluation = res
-
     def print_results(self) -> None:
         """
         Function prints the module's output. This does not have any impact on the Penterep
@@ -212,14 +190,42 @@ class HeadersTest(BaseModule[HeadersResults]):
 
         Log.info("Missing headers:")
         for header in self.results.missing_headers:
-            print(f"\t{header.name}")
+            Log.print(f"{header.name}")
 
         Log.info("Headers potentially leaking info:")
         for header in self.results.headers_leaking_info:
-            print(f"\t{header.name}: {header.value}")
+            Log.print(f"{header.name}: {header.value}")
 
-    def json(self) -> None:
-        raise NotImplementedError
+    def json(self) -> str | None:
+        """
+        Function iterates over the module's results and serializes them into
+        Penterep JSON structures.
+
+        Returns:
+            str | None: String representing the modules JSON output
+        """
+        if self.results is None:
+            return None
+
+        for header in self.results.missing_headers:
+            if header.code is None:
+                Log.error(f"Header in findings {header.name} does not have a PT_VULN_CODE!")
+                continue
+
+            self.ptjsonlib.add_vulnerability(
+                header.code, self.request_text.decode(), self.response_text.decode()
+            )
+
+        for header in self.results.headers_leaking_info:
+            if header.code is None:
+                Log.error(f"Header in findings {header.name} does not have a PT_VULN_CODE!")
+                continue
+
+            self.ptjsonlib.add_vulnerability(
+                header.code, self.request_text.decode(), self.response_text.decode()
+            )
+
+        return self.ptjsonlib.get_result_json()
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore

@@ -3,30 +3,36 @@ from ptlibs import ptprinthelper
 
 
 class Log:
+    silent: bool = False
+
     @staticmethod
     def progress(msg: str):
-        # print(Fore.YELLOW + "\n[*] " + Style.RESET_ALL + msg)
-        ptprinthelper.ptprint(ptprinthelper.out_title(msg))
+        ptprinthelper.ptprint(ptprinthelper.out_title(msg), condition=not Log.silent)
 
     @staticmethod
     def info(msg: str):
-        ptprinthelper.ptprint(Fore.LIGHTBLUE_EX + "[i] " + Style.RESET_ALL + msg)
+        ptprinthelper.ptprint(
+            Fore.LIGHTBLUE_EX + "[i] " + Style.RESET_ALL + msg, condition=not Log.silent
+        )
 
     @staticmethod
     def success(msg: str):
-        ptprinthelper.ptprint(Fore.LIGHTGREEN_EX + "[+] " + Style.RESET_ALL + msg)
+        ptprinthelper.ptprint(
+            Fore.LIGHTGREEN_EX + "[+] " + Style.RESET_ALL + msg, condition=not Log.silent
+        )
 
     @staticmethod
     def error(msg: str):
-        ptprinthelper.ptprint(Fore.LIGHTRED_EX + "[!] " + Style.RESET_ALL + msg)
+        ptprinthelper.ptprint(
+            Fore.LIGHTRED_EX + "[!] " + Style.RESET_ALL + msg, condition=not Log.silent
+        )
 
     @staticmethod
     def warning(msg: str):
-        ptprinthelper.ptprint(Fore.YELLOW + "[!] " + Style.RESET_ALL + msg)
+        ptprinthelper.ptprint(
+            Fore.YELLOW + "[!] " + Style.RESET_ALL + msg, condition=not Log.silent
+        )
 
     @staticmethod
-    def banner(json: bool):
-        global SCRIPTNAME
-        SCRIPTNAME = "ptwebda"
-
-        ptprinthelper.print_banner(SCRIPTNAME, "0.9", json)
+    def print(msg: str):
+        ptprinthelper.ptprint(f"\t{msg}", condition=not Log.silent)

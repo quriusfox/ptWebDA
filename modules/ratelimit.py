@@ -98,10 +98,8 @@ class RateLimitTest(BaseModule[RateLimitResult]):
         Main function for the current test.
         """
         self.print_info()
-        self.result: RateLimitResult | None = self.test()
-        self.print_results()
-
-        Log.success("Test finished successfully")
+        Log.progress("Running module")
+        self.result = self.test()
 
     def print_info(self) -> None:
         """
@@ -109,14 +107,17 @@ class RateLimitTest(BaseModule[RateLimitResult]):
         """
         Log.progress(f"Test info:\n")
 
-        info = ""
-        info += f"\n\tTest name:       : RateLimitTest"
-        info += f"\n\tTarget:          : {self.target if self.target is not None else self.prepared_request.url}"
-        info += f"\n\tThreads          : {self.num_threads}"
-        info += f"\n\tTotal requests   : {self.total_requests}"
-        info += f"\n\tDisplay interval : {self.display_interval}\n"
-
-        print(info)
+        Log.print(f"\n\tTest name:       : RateLimitTest")
+        Log.print(
+            f"Target:          : {self.target if self.target is not None else self.prepared_request.url}"
+        )
+        Log.print(f"Target           : {self.target}")
+        Log.print(f"HTTPS            : {self.https}")
+        Log.print(f"Proxies          : {self.proxies}\n")
+        Log.print(f"Threads          : {self.num_threads}")
+        Log.print(f"Total requests   : {self.total_requests}")
+        Log.print(f"Display interval : {self.display_interval}")
+        Log.print(f"")
 
     def test(self) -> RateLimitResult:
         """
@@ -141,6 +142,10 @@ class RateLimitTest(BaseModule[RateLimitResult]):
 
                 if result is None:
                     continue
+
+                # TODO: Test this on www.vut.cz
+                if self.failed_req > 0.5 * self.success_req:
+                    self.total_requests += 100
 
                 if self.failed_req > self.success_req:
                     for future in self.futures:

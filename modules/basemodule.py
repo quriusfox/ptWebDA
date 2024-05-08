@@ -1,25 +1,9 @@
 import argparse
 import requests
 
+from ptlibs import ptjsonlib  # type: ignore
 from abc import ABC, abstractmethod
-from typing import NamedTuple
 from .utils.http import HTTPRequest, HTTPRequestParser
-
-
-# region Structures
-class PTVuln(NamedTuple):
-    """
-    Structure holds information that are Penterep compatible and are later serialized into JSON.
-    This ensures Penterep platform compatibility.
-
-    """
-
-    code: str
-    request: bytes
-    response: bytes
-
-
-# endregion
 
 
 # region Main module class
@@ -50,6 +34,7 @@ class BaseModule[T](ABC):
         super().__init__()
 
         self.target = target
+        self.https = https
         self.proxies: dict[str, str] | None = None
 
         if proxy:
@@ -58,7 +43,7 @@ class BaseModule[T](ABC):
         self.verify = False
 
         # Values for preparing a requests.Request() object
-        self.prepared_request = self.__prepare_request(request_file_path, https)
+        self.prepared_request = self._prepare_request(request_file_path)
 
         # Penterep compatibility
         self.request_text: bytes = b""
@@ -66,7 +51,7 @@ class BaseModule[T](ABC):
 
         # Results
         self.results: T | None = None
-        self.evaluation: list[PTVuln] | None = None
+        self.ptjsonlib = ptjsonlib.PtJsonLib()
 
     def save_request_text(self, request: requests.PreparedRequest) -> None:
         """
@@ -85,13 +70,17 @@ class BaseModule[T](ABC):
         """
         Save the reponse for PTVuln structure.
         """
-        status_line = f"HTTP/{response.raw.version} {response.status_code} {response.reason}\r\n"
+        # The response.raw.version in an intiger representing the HTTP version without
+        # the dot (e.g 11). We want to use the 1.1 format so we have to split the integer into two
+        # and separate them with a dot.
+        version = str(response.raw.version)[0] + "." + str(response.raw.version)[1]
+        status_line = f"HTTP/{version} {response.status_code} {response.reason}\r\n"
         headers = "".join([f"{k}: {v}\r\n" for k, v in response.headers.items()])
 
         # Combine status line and headers
         self.response_text = (status_line + headers).encode()
 
-    def __prepare_request(self, request_file_path: str | None, https: bool) -> requests.Request:
+    def _prepare_request(self, request_file_path: str | None) -> requests.Request:
         """
         Constructing requests.Request object parsing request file or using just target.
 
@@ -106,7 +95,7 @@ class BaseModule[T](ABC):
 
         if self.target is None:
             if request_file_path:
-                parser = HTTPRequestParser(request_file_path, https)
+                parser = HTTPRequestParser(request_file_path, self.https)
                 http_request: HTTPRequest = parser.parse()
 
                 url = (
@@ -119,6 +108,9 @@ class BaseModule[T](ABC):
                     http_request.method, url, data=http_request.data, headers=http_request.headers
                 )
         else:
+            if "https://" not in self.target:
+                self.https = False
+
             prepared_request = requests.Request("GET", self.target)
             prepared_request.headers["User-Agent"] = "Penterep Tools"
 
@@ -137,15 +129,11 @@ class BaseModule[T](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def evaluate(self) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
     def print_results(self) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    def json(self) -> None:
+    def json(self) -> str | None:
         raise NotImplementedError
 
     @staticmethod

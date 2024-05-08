@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from typing import NamedTuple
 
 from .utils.helpers import Log
-from .basemodule import BaseModule, PTVuln
+from .basemodule import BaseModule
 
 # region Constants
 CSP_HEADERS: list[str] = ["content-security-policy", "x-content-security-policy", "x-webkit-csp"]
@@ -101,26 +101,25 @@ class CSPTest(BaseModule[CSPResult]):
         """
         super().__init__(target, request_file_path, proxy, https)
 
-        # Penterep compatibility
-        self.request_text: bytes = b""
-        self.response_text: bytes = b""
-
         # Results
         self.results: CSPResult | None = None
 
     def run(self):
         self.print_info()
+        Log.progress("Running module")
         self.results = self.test()
-        self.evaluate()
-        self.print_results()
 
     def print_info(self):
         """
         Provides basic information about current test's setup parameters.
         """
         Log.progress(f"Test info:\n")
-        print("\tTest name : CSPTest")
-        print(f"\tTarget    : {self.target}\n")
+        Log.print("Test name : CSPTest")
+        Log.print(
+            f"Target:   : {self.target if self.target is not None else self.prepared_request.url}"
+        )
+        Log.print(f"HTTPS     : {self.https}")
+        Log.print(f"Proxies   : {self.proxies}\n")
 
     def test(self) -> CSPResult:
         csp_headers: list[CSPDirective] | None = None
@@ -138,24 +137,12 @@ class CSPTest(BaseModule[CSPResult]):
 
             r = Response(response.headers, Html(response.url, response.text))
 
-            csp_headers = self.__check_csp_headers(r)
-            csp_html = self.__check_csp_html(r)
+            csp_headers = self._check_csp_headers(r)
+            csp_html = self._check_csp_html(r)
         except requests.exceptions.RequestException as e:
             Log.error(f"Error occurred: {e}")
 
         return CSPResult(csp_headers, csp_html)
-
-    def evaluate(self) -> None:
-        """
-        Function takes the data from CSPResults structure and transforms it to Penterep
-        compatible PTVuln structure.
-        """
-        if self.results is None:
-            return None
-
-        res: list[PTVuln] = [PTVuln("PTV-WEB-CSPMISCONFIG", self.request_text, self.response_text)]
-
-        self.evaluation = res
 
     def print_results(self) -> None:
         """
@@ -167,6 +154,7 @@ class CSPTest(BaseModule[CSPResult]):
             return None
 
         if self.results.csp_headers is None and self.results.csp_html is None:
+            Log.error("Results cannot be printed! Value of results is None")
             return None
 
         Log.info("CSP directies:")
@@ -177,12 +165,26 @@ class CSPTest(BaseModule[CSPResult]):
 
             for directive in csp:
                 if directive.dangerous:
-                    Log.error(f"{directive.name} {directive.content}")
+                    Log.error(f"\t{directive.name} {directive.content}")
                 else:
-                    Log.info(f"{directive.name} {directive.content}")
+                    Log.info(f"\t{directive.name} {directive.content}")
 
-    def json(self) -> None:
-        raise NotImplementedError
+    def json(self) -> str | None:
+        """
+        Function iterates over the module's results and serializes them into
+        Penterep JSON structures.
+
+        Returns:
+            str | None: String representing the modules JSON output
+        """
+        if self.results is None:
+            return None
+
+        self.ptjsonlib.add_vulnerability(
+            "PTV-WEB-CSPMISCONFIG", self.request_text.decode(), self.response_text.decode()
+        )
+
+        return self.ptjsonlib.get_result_json()
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore
@@ -203,7 +205,7 @@ class CSPTest(BaseModule[CSPResult]):
             "-s", "--https", action="store_true", help="Use HTTPS. (only used with -f)"
         )
 
-    def __eval_directives(self, directives: list[str]) -> list[CSPDirective]:
+    def _eval_directives(self, directives: list[str]) -> list[CSPDirective]:
         eval_directives: list[CSPDirective] = []
 
         required_directives = {"object-src", "default-src", "base-uri"}
@@ -212,7 +214,7 @@ class CSPTest(BaseModule[CSPResult]):
 
         # Append missing directives
         for directive_name in missing_directives:
-            eval_directives.append(CSPDirective(directive_name, None, True))
+            eval_directives.append(CSPDirective(directive_name, "not defined", True))
 
         for directive in directives:
             name: str = ""
@@ -246,7 +248,7 @@ class CSPTest(BaseModule[CSPResult]):
 
         return eval_directives
 
-    def __check_csp_headers(self, response: Response) -> list[CSPDirective] | None:
+    def _check_csp_headers(self, response: Response) -> list[CSPDirective] | None:
         directives: list[str] = []
 
         for key, value in response.headers.items():
@@ -257,9 +259,9 @@ class CSPTest(BaseModule[CSPResult]):
             Log.info("Server did not respond with any CSP headers!")
             return None
 
-        return self.__eval_directives(directives)
+        return self._eval_directives(directives)
 
-    def __check_csp_html(self, response: Response) -> list[CSPDirective] | None:
+    def _check_csp_html(self, response: Response) -> list[CSPDirective] | None:
         directives: list[str] = []
 
         for meta_http in response.html.soup_body.find_all(
@@ -273,7 +275,7 @@ class CSPTest(BaseModule[CSPResult]):
             Log.info("HTML content does not include any CSP configuration!")
             return None
 
-        self.__eval_directives(directives)
+        self._eval_directives(directives)
 
 
 # endregion

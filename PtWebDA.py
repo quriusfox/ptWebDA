@@ -1,9 +1,12 @@
-import argparse
 import urllib3
+import argparse
 
+from ptlibs import ptprinthelper
 from modules import RateLimitTest, HeadersTest, CSPTest, CookieTest, Log
 
 urllib3.disable_warnings()
+
+__version__ = "0.9"
 
 MODULES = {
     "ratelimit": RateLimitTest,
@@ -12,17 +15,61 @@ MODULES = {
     "cookies": CookieTest,
 }
 
-# MODULES = {
-#     "ratelimit": RateLimitTest,
-# }
+
+class PtWebDA:
+    def __init__(self, args: argparse.Namespace) -> None:
+        self.args = args
+
+    def run(self):
+        test: RateLimitTest | HeadersTest | CSPTest | CookieTest | None = None
+
+        https = True
+
+        if self.args.file is not None:
+            https = False
+
+        if self.args.https is None and self.args.file is not None:
+            https = True
+
+        if self.args.module == "headers":
+            test = HeadersTest(self.args.url, self.args.file, self.args.proxy, https)
+            test.run()
+        elif self.args.module == "ratelimit":
+            test = RateLimitTest(
+                self.args.url,
+                self.args.file,
+                self.args.proxy,
+                https,
+                num_threads=int(self.args.threads),
+                total_requests=int(self.args.num_requests),
+            )
+            test.run()
+        elif self.args.module == "csp":
+            test = CSPTest(self.args.url, self.args.file, self.args.proxy, https)
+            test.run()
+        elif self.args.module == "cookies":
+            test = CookieTest(self.args.url, self.args.file, self.args.proxy, https)
+            test.run()
+
+        if test is None:
+            return
+
+        if self.args.json:
+            print(test.json())
+        else:
+            test.print_results()
+
+        Log.success("Module finished successfully")
 
 
-def main() -> None:
-
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="PtWebDA dynamic analysis web assessment toolkit", add_help=True
     )
 
+    parser.add_argument(
+        "-v", "--version", action="version", version=f"%(prog)s {__version__}", help="print version"
+    )
     parser.add_argument(
         "-j", "--json", action="store_true", help="Use Penterep JSON output format."
     )
@@ -33,48 +80,20 @@ def main() -> None:
     for module in MODULES.values():
         module.add_subparser(subparsers)  # type: ignore
 
-    # RateLimitTest.add_subparser(subparsers)
-
-    # print(subparsers)
     args = parser.parse_args()
 
-    Log.banner(args.json)
+    ptprinthelper.print_banner(SCRIPTNAME, __version__, args.json)
 
-    https = False
+    return args
 
-    if args.https:
-        https = True
 
-    if args.module == "headers":
-        test_headers = HeadersTest(args.url, args.file, args.proxy, https)
-        test_headers.run()
-    elif args.module == "ratelimit":
-        test = RateLimitTest(
-            args.url,
-            args.file,
-            args.proxy,
-            https,
-            num_threads=int(args.threads),
-            total_requests=int(args.num_requests),
-        )
-        test.run()
-    elif args.module == "csp":
-        test_csp = CSPTest(args.url, args.file, args.proxy, https)
-        test_csp.run()
-    elif args.module == "cookies":
-        test_cookies = CookieTest(args.url, args.file, args.proxy, https)
-        test_cookies.run()
-    elif args.module == "all":
-        test_headers = HeadersTest(args.url, args.file, args.proxy, https)
-        test_headers.run()
-        test_ratelimit = RateLimitTest(args.url, args.file, args.proxy, https)
-        test_ratelimit.run()
-        test_csp = CSPTest(args.url, args.file, args.proxy, https)
-        test_csp.run()
-        test_cookies = CookieTest(args.url, args.file, args.proxy, https)
-        test_cookies.run()
-    else:
-        parser.error("Invalid test type")
+def main() -> None:
+    global SCRIPTNAME
+    SCRIPTNAME = "ptwebda"
+    args = parse_args()
+
+    script = PtWebDA(args)
+    script.run()
 
 
 if __name__ == "__main__":
