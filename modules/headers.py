@@ -109,10 +109,15 @@ class HeadersTest(BaseModule[HeadersResults]):
         # Results
         self.results: HeadersResults | None = None
 
-    def run(self) -> None:
+    def run(self) -> bool:
         self.print_info()
         Log.progress("Running module")
         self.results = self.test()
+
+        if self.results is None:
+            return False
+
+        return True
 
     def print_info(self) -> None:
         """
@@ -126,7 +131,7 @@ class HeadersTest(BaseModule[HeadersResults]):
         Log.print(f"HTTPS     : {self.https}")
         Log.print(f"Proxies   : {self.proxies}\n")
 
-    def test(self) -> HeadersResults:
+    def test(self) -> HeadersResults | None:
         """
         Sends prepared HTTP request to the target endpoint and retireves HTTP headers that are
         missing from the implementation, are present and leak information and headers containing
@@ -176,6 +181,7 @@ class HeadersTest(BaseModule[HeadersResults]):
 
         except requests.exceptions.RequestException as e:
             Log.error(f"Error occurred: {e}")
+            return None
 
         return HeadersResults(res_missing_headers, res_headers_leaking_info, res_cache_headers)
 

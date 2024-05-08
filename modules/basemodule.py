@@ -117,7 +117,7 @@ class BaseModule[T](ABC):
         return prepared_request
 
     @abstractmethod
-    def run(self) -> None:
+    def run(self) -> bool:
         raise NotImplementedError
 
     @abstractmethod
@@ -125,7 +125,7 @@ class BaseModule[T](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def test(self) -> T:
+    def test(self) -> T | None:
         raise NotImplementedError
 
     @abstractmethod

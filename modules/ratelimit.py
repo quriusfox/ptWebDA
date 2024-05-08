@@ -87,19 +87,24 @@ class RateLimitTest(BaseModule[RateLimitResult]):
         # Thread handling
         self.futures = []
         self.exit_flag: Event = Event()
-        signal.signal(signal.SIGINT, self.__signal_handler)  # type: ignore
+        signal.signal(signal.SIGINT, self._signal_handler)  # type: ignore
 
         # Final results
         self.meta_resutls: list[Response] = []
         self.result: RateLimitResult | None = None
 
-    def run(self) -> None:
+    def run(self) -> bool:
         """
         Main function for the current test.
         """
         self.print_info()
         Log.progress("Running module")
         self.result = self.test()
+
+        if self.results is None:
+            return False
+
+        return True
 
     def print_info(self) -> None:
         """
@@ -119,7 +124,7 @@ class RateLimitTest(BaseModule[RateLimitResult]):
         Log.print(f"Display interval : {self.display_interval}")
         Log.print(f"")
 
-    def test(self) -> RateLimitResult:
+    def test(self) -> RateLimitResult | None:
         """
         Function sends requests to the endpoint specified during the test initialization. Function
         spawns a set amount of threads and sents a set amount of requests to the endpoint.
@@ -129,14 +134,12 @@ class RateLimitTest(BaseModule[RateLimitResult]):
             it took to trigger the rate limit.
         """
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.num_threads) as executor:
-            self.futures = [
-                executor.submit(self.__make_request) for _ in range(self.total_requests)
-            ]
+            self.futures = [executor.submit(self._make_request) for _ in range(self.total_requests)]
 
             for future in concurrent.futures.as_completed(self.futures):
                 if self.success_req % (self.num_threads * self.display_interval) == 0:
                     self.elapsed_time = time.time() - self.start_time
-                    self.__display_rps()
+                    self._display_rps()
 
                 result = future.result()
 
@@ -160,9 +163,6 @@ class RateLimitTest(BaseModule[RateLimitResult]):
         print(" " * 200, end="\r")
 
         return RateLimitResult(False, None)
-
-    def evaluate(self) -> None:
-        raise NotImplementedError
 
     def print_results(self) -> None:
         """
@@ -228,7 +228,7 @@ class RateLimitTest(BaseModule[RateLimitResult]):
             "-n", "--num-requests", help="Number of requests to use. (default 1000)"
         )
 
-    def __make_request(self, path: str | None = None) -> Response | None:
+    def _make_request(self, path: str | None = None) -> Response | None:
         """
         Function to make a single HTTP request and measure response time
 
@@ -240,7 +240,7 @@ class RateLimitTest(BaseModule[RateLimitResult]):
         """
         if self.success_req % (self.num_threads * self.display_interval) == 0:
             self.elapsed_time = time.time() - self.start_time
-            self.__display_rps()
+            self._display_rps()
 
         try:
             start_time = time.time()
@@ -263,7 +263,7 @@ class RateLimitTest(BaseModule[RateLimitResult]):
             self.failed_req += 1
             return None
 
-    def __display_rps(self) -> None:
+    def _display_rps(self) -> None:
         """
         Function to display requests per second.
 
@@ -287,7 +287,7 @@ class RateLimitTest(BaseModule[RateLimitResult]):
         except:
             pass
 
-    def __signal_handler(self, sig, frame):  # type: ignore
+    def _signal_handler(self, sig, frame):  # type: ignore
         Log.error("Ctrl + C pressed. Exiting...")
 
         self.exit_flag.set()

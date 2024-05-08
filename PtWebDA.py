@@ -1,12 +1,12 @@
 import urllib3
 import argparse
 
-from ptlibs import ptprinthelper
+from ptlibs import ptprinthelper  # type: ignore
 from modules import RateLimitTest, HeadersTest, CSPTest, CookieTest, Log
 
 urllib3.disable_warnings()
 
-__version__ = "0.9"
+__version__ = "1.0"
 
 MODULES = {
     "ratelimit": RateLimitTest,
@@ -22,6 +22,7 @@ class PtWebDA:
 
     def run(self):
         test: RateLimitTest | HeadersTest | CSPTest | CookieTest | None = None
+        res: bool = False
 
         https = True
 
@@ -31,9 +32,13 @@ class PtWebDA:
         if self.args.https is None and self.args.file is not None:
             https = True
 
+        # Supress console output if output is JSON
+        if self.args.json:
+            Log.silent = True
+
         if self.args.module == "headers":
             test = HeadersTest(self.args.url, self.args.file, self.args.proxy, https)
-            test.run()
+            res = test.run()
         elif self.args.module == "ratelimit":
             test = RateLimitTest(
                 self.args.url,
@@ -43,17 +48,22 @@ class PtWebDA:
                 num_threads=int(self.args.threads),
                 total_requests=int(self.args.num_requests),
             )
-            test.run()
+            res = test.run()
         elif self.args.module == "csp":
             test = CSPTest(self.args.url, self.args.file, self.args.proxy, https)
-            test.run()
+            res = test.run()
         elif self.args.module == "cookies":
             test = CookieTest(self.args.url, self.args.file, self.args.proxy, https)
-            test.run()
+            res = test.run()
 
         if test is None:
             return
 
+        if not res:
+            Log.error("Module failed to finish successfully")
+            return
+
+        # Two variants of tool's output
         if self.args.json:
             print(test.json())
         else:
@@ -82,7 +92,7 @@ def parse_args() -> argparse.Namespace:
 
     args = parser.parse_args()
 
-    ptprinthelper.print_banner(SCRIPTNAME, __version__, args.json)
+    ptprinthelper.print_banner(SCRIPTNAME, __version__, args.json)  # type: ignore
 
     return args
 

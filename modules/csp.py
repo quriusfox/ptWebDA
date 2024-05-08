@@ -104,10 +104,15 @@ class CSPTest(BaseModule[CSPResult]):
         # Results
         self.results: CSPResult | None = None
 
-    def run(self):
+    def run(self) -> bool:
         self.print_info()
         Log.progress("Running module")
         self.results = self.test()
+
+        if self.results is None:
+            return False
+
+        return True
 
     def print_info(self):
         """
@@ -121,7 +126,7 @@ class CSPTest(BaseModule[CSPResult]):
         Log.print(f"HTTPS     : {self.https}")
         Log.print(f"Proxies   : {self.proxies}\n")
 
-    def test(self) -> CSPResult:
+    def test(self) -> CSPResult | None:
         csp_headers: list[CSPDirective] | None = None
         csp_html: list[CSPDirective] | None = None
 
@@ -141,6 +146,7 @@ class CSPTest(BaseModule[CSPResult]):
             csp_html = self._check_csp_html(r)
         except requests.exceptions.RequestException as e:
             Log.error(f"Error occurred: {e}")
+            return None
 
         return CSPResult(csp_headers, csp_html)
 

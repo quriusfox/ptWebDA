@@ -75,10 +75,15 @@ class CookieTest(BaseModule[CookieResult]):
         """
         super().__init__(target, request_file_path, proxy, https)
 
-    def run(self):
+    def run(self) -> bool:
         self.print_info()
         Log.progress("Running module")
         self.results = self.test()
+
+        if self.results is None:
+            return False
+
+        return True
 
     def print_info(self):
         Log.progress(f"Test info:\n")
@@ -89,7 +94,7 @@ class CookieTest(BaseModule[CookieResult]):
         Log.print(f"HTTPS     : {self.https}")
         Log.print(f"Proxies   : {self.proxies}\n")
 
-    def test(self) -> CookieResult:
+    def test(self) -> CookieResult | None:
         all_cookies: list[Cookie] | None = None
 
         try:
@@ -105,6 +110,7 @@ class CookieTest(BaseModule[CookieResult]):
             all_cookies = self.__parse_cookies(response)
         except requests.exceptions.RequestException as e:
             Log.error(f"Error occurred: {e}")
+            return None
 
         return CookieResult(all_cookies)
 
@@ -162,12 +168,14 @@ class CookieTest(BaseModule[CookieResult]):
                 self.ptjsonlib.add_vulnerability(
                     PT_VULN_CODES["secure"], self.request_text.decode(), self.response_text.decode()
                 )
+
             if not cookie.http_only:
                 self.ptjsonlib.add_vulnerability(
                     PT_VULN_CODES["httponly"],
                     self.request_text.decode(),
                     self.response_text.decode(),
                 )
+
             if not cookie.same_site.present:
                 self.ptjsonlib.add_vulnerability(
                     PT_VULN_CODES["samesite"],
@@ -175,7 +183,10 @@ class CookieTest(BaseModule[CookieResult]):
                     self.response_text.decode(),
                 )
             else:
-                if cookie.same_site.value == "None":
+                if cookie.same_site.value is None:
+                    continue
+
+                if cookie.same_site.value.lower() == "none":
                     self.ptjsonlib.add_vulnerability(
                         PT_VULN_CODES["samesite-none"],
                         self.request_text.decode(),
