@@ -101,7 +101,7 @@ class RateLimitTest(BaseModule[RateLimitResult]):
         Log.progress("Running module")
         self.result = self.test()
 
-        if self.results is None:
+        if self.result is None:
             return False
 
         return True
@@ -116,7 +116,6 @@ class RateLimitTest(BaseModule[RateLimitResult]):
         Log.print(
             f"Target:          : {self.target if self.target is not None else self.prepared_request.url}"
         )
-        Log.print(f"Target           : {self.target}")
         Log.print(f"HTTPS            : {self.https}")
         Log.print(f"Proxies          : {self.proxies}\n")
         Log.print(f"Threads          : {self.num_threads}")
@@ -137,18 +136,15 @@ class RateLimitTest(BaseModule[RateLimitResult]):
             self.futures = [executor.submit(self._make_request) for _ in range(self.total_requests)]
 
             for future in concurrent.futures.as_completed(self.futures):
-                if self.success_req % (self.num_threads * self.display_interval) == 0:
-                    self.elapsed_time = time.time() - self.start_time
-                    self._display_rps()
+                if not Log.silent:
+                    if self.success_req % (self.num_threads * self.display_interval) == 0:
+                        self.elapsed_time = time.time() - self.start_time
+                        self._display_rps()
 
                 result = future.result()
 
                 if result is None:
                     continue
-
-                # TODO: Test this on www.vut.cz
-                if self.failed_req > 0.5 * self.success_req:
-                    self.total_requests += 100
 
                 if self.failed_req > self.success_req:
                     for future in self.futures:
@@ -202,8 +198,38 @@ class RateLimitTest(BaseModule[RateLimitResult]):
                 f"Requests terminated by connection error = {self.failed_req - sum429 - sum509}"
             )
 
-    def json(self) -> None:
-        raise NotImplementedError
+    def json(self) -> str | None:
+        """
+        Function iterates over the module's results and serializes them into
+        Penterep JSON structures.
+
+        Returns:
+            str | None: String representing the modules JSON output
+        """
+        if self.result is None:
+            return None
+
+        response_text_no_detection = "NO RATE LIMIT DETECTED!"
+        response_text_detection = (
+            "RATE LIMIT DETECTED!"
+            + "\n"
+            + f"Too many failed requests ({self.failed_req} / {self.success_req + self.failed_req})"
+            + "\n"
+            + f"Approximate threshold: {self.success_req} requests"
+            + "\n"
+            + f"Elapsed time: {self.elapsed_time:.2f}"
+        )
+
+        if self.result.rate_limited:
+            self.ptjsonlib.add_vulnerability(
+                "PTV-WEB-RATELIMITDETECTED", self.request_text.decode(), response_text_detection
+            )
+        else:
+            self.ptjsonlib.add_vulnerability(
+                "PTV-WEB-NORATELIMIT", self.request_text.decode(), response_text_no_detection
+            )
+
+        return self.ptjsonlib.get_result_json()
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore
@@ -238,10 +264,6 @@ class RateLimitTest(BaseModule[RateLimitResult]):
         Returns:
             Response | None: A structure representing HTTP status code and response time.
         """
-        if self.success_req % (self.num_threads * self.display_interval) == 0:
-            self.elapsed_time = time.time() - self.start_time
-            self._display_rps()
-
         try:
             start_time = time.time()
 
@@ -249,6 +271,9 @@ class RateLimitTest(BaseModule[RateLimitResult]):
             response = requests.Session().send(
                 self.prepared_request.prepare(), proxies=self.proxies, verify=self.verify
             )
+
+            if self.request_text == b"":
+                self.save_request_text(response.request)
 
             end_time = time.time()
             response_time = (end_time - start_time) * 1000
