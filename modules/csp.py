@@ -171,9 +171,9 @@ class CSPTest(BaseModule[CSPResult]):
 
             for directive in csp:
                 if directive.dangerous:
-                    Log.error(f"\t{directive.name} {directive.content}")
+                    Log.error(f"{directive.name} {directive.content}")
                 else:
-                    Log.info(f"\t{directive.name} {directive.content}")
+                    Log.info(f"{directive.name} {directive.content}")
 
     def json(self) -> str | None:
         """

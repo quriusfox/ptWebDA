@@ -1,5 +1,7 @@
+import sys
 from io import BytesIO
 from typing import NamedTuple
+from .helpers import Log
 
 
 class HTTPRequest(NamedTuple):
@@ -20,12 +22,15 @@ class HTTPRequestParser:
             request_file_path (str): Path to the file with HTTP request (e.g. from BurpSuite).
             https (bool): Indication whether the request was sent via HTTPS.
         """
-        # Read the bytes from the file
-        with open(request_file_path, "rb") as f:
-            raw_http_request = f.read()
-
-        self.rfile = BytesIO(raw_http_request)
-        self.https = https
+        try:
+            # Read the bytes from the file
+            with open(request_file_path, "rb") as f:
+                raw_http_request = f.read()
+                self.rfile = BytesIO(raw_http_request)
+                self.https = https
+        except:
+            Log.error("File could not be opened!")
+            sys.exit(1)
 
     def parse(self) -> HTTPRequest:
         """

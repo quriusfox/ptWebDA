@@ -40,13 +40,16 @@ class PtWebDA:
             test = HeadersTest(self.args.url, self.args.file, self.args.proxy, https)
             res = test.run()
         elif self.args.module == "ratelimit":
+            num_threads = int(self.args.threads) if self.args.threads else 10
+            total_requests = int(self.args.num_requests) if self.args.num_requests else 1000
+
             test = RateLimitTest(
                 self.args.url,
                 self.args.file,
                 self.args.proxy,
                 https,
-                num_threads=int(self.args.threads),
-                total_requests=int(self.args.num_requests),
+                num_threads=num_threads,
+                total_requests=total_requests,
             )
             res = test.run()
         elif self.args.module == "csp":

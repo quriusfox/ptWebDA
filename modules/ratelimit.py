@@ -76,7 +76,7 @@ class RateLimitTest(BaseModule[RateLimitResult]):
 
         # Values for evaluation of rate limiting
         self.failed_req: int = 0
-        self.success_req = 0
+        self.success_req: int = 0
 
         # Values for progress display in terminal
         self.start_time: float = time.time()
@@ -164,7 +164,7 @@ class RateLimitTest(BaseModule[RateLimitResult]):
         """
         Prints the information about the test's results.
         """
-        print(" " * 200, end="\r")
+        # print(" " * 200, end="\r")
 
         if self.result is None:
             return None

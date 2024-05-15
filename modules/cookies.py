@@ -75,6 +75,9 @@ class CookieTest(BaseModule[CookieResult]):
         """
         super().__init__(target, request_file_path, proxy, https)
 
+        # Results
+        self.results: CookieResult | None = None
+
     def run(self) -> bool:
         self.print_info()
         Log.progress("Running module")
@@ -107,7 +110,7 @@ class CookieTest(BaseModule[CookieResult]):
             self.save_request_text(response.request)
             self.save_response_text(response)
 
-            all_cookies = self.__parse_cookies(response)
+            all_cookies = self._parse_cookies(response)
         except requests.exceptions.RequestException as e:
             Log.error(f"Error occurred: {e}")
             return None
@@ -130,21 +133,21 @@ class CookieTest(BaseModule[CookieResult]):
             Log.success(f"Found cookie: {cookie.name}")
 
             if not cookie.secure:
-                Log.error(f"\tCookie '{cookie.name}' does not have the secure flag set!")
+                Log.error(f"Cookie '{cookie.name}' does not have the secure flag set!")
 
             if not cookie.http_only:
-                Log.error(f"\tCookie '{cookie.name}' is not HttpOnly!")
+                Log.error(f"Cookie '{cookie.name}' is not HttpOnly!")
 
             if not cookie.same_site.present:
-                Log.error(f"\tCookie '{cookie.name}' does not have SameSite attribute set")
+                Log.error(f"Cookie '{cookie.name}' does not have SameSite attribute set")
             else:
                 if cookie.same_site.value == "strict":
                     Log.info(
-                        f"\tCookie '{cookie.name}' has SameSite attribute set to: '{cookie.same_site.value}'"
+                        f"Cookie '{cookie.name}' has SameSite attribute set to: '{cookie.same_site.value}'"
                     )
                 else:
                     Log.error(
-                        f"\tCookie '{cookie.name}' has SameSite attribute set to: '{cookie.same_site.value}'"
+                        f"Cookie '{cookie.name}' has SameSite attribute set to: '{cookie.same_site.value}'"
                     )
 
             # Log.print("")
@@ -214,7 +217,7 @@ class CookieTest(BaseModule[CookieResult]):
             "-s", "--https", action="store_true", help="Use HTTPS. (only used with -f)"
         )
 
-    def __parse_cookies(self, response: requests.Response) -> list[Cookie]:
+    def _parse_cookies(self, response: requests.Response) -> list[Cookie] | None:
         """
         Analyzes security attributes of HTTP cookies based on the HTTP response.
 
@@ -277,6 +280,7 @@ class CookieTest(BaseModule[CookieResult]):
                 )
         else:
             Log.info("HTTP response did not set any cookies!")
+            return None
 
         return all_cookies
 
