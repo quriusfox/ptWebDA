@@ -36,7 +36,7 @@ class Html:
 
 class Response(NamedTuple):
     """
-    Structure representing the response to the HTML request. This structure strips the
+    Structure representing the response to the HTTP request. This structure strips the
     requests.Request object off the unnecessary data and adds the Html object for HTML code parsing.
     """
 
@@ -105,6 +105,9 @@ class CSPTest(BaseModule[CSPResult]):
         self.results: CSPResult | None = None
 
     def run(self) -> bool:
+        """
+        Main function for the current test.
+        """
         self.print_info()
         Log.progress("Running module")
         self.results = self.test()
@@ -127,6 +130,16 @@ class CSPTest(BaseModule[CSPResult]):
         Log.print(f"Proxies   : {self.proxies}\n")
 
     def test(self) -> CSPResult | None:
+        """
+        Sends prepared HTTP request to the target endpoint and retireves HTTP headers. Headers are
+        then analyzed and CSP directives extracted from the Content Security Policy headers.
+        Method also checks the response body for any CSP configuration within HTML. At the end
+        the method analyzes the security of discovered CSP directives.
+
+        Returns:
+            CSPResult | None: Structure holding lists of evaluated CSP directives from both HTTP
+            headers and HTML source code.
+        """
         csp_headers: list[CSPDirective] | None = None
         csp_html: list[CSPDirective] | None = None
 
@@ -194,6 +207,13 @@ class CSPTest(BaseModule[CSPResult]):
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore
+        """
+        Subparser method for the module.
+
+        Args:
+            subparsers (argparse._SubParsersAction): Parser object passed during the command line
+            parsing in the main function.
+        """
         modname = __name__.split(".")[-1]
         parser = subparsers.add_parser(modname, add_help=True)  # type: ignore
 
@@ -212,6 +232,15 @@ class CSPTest(BaseModule[CSPResult]):
         )
 
     def _eval_directives(self, directives: list[str]) -> list[CSPDirective]:
+        """
+        Evaluates the security of the given CSP directives.
+
+        Args:
+            directives (list[str]): List of CSP directives.
+
+        Returns:
+            list[CSPDirective]: List of evaluated CSP directives.
+        """
         eval_directives: list[CSPDirective] = []
 
         required_directives = {"object-src", "default-src", "base-uri"}
@@ -255,6 +284,15 @@ class CSPTest(BaseModule[CSPResult]):
         return eval_directives
 
     def _check_csp_headers(self, response: Response) -> list[CSPDirective] | None:
+        """
+        Parses the CSP headers and it's directives from the response headers.
+
+        Args:
+            response (Response): HTTP response object.
+
+        Returns:
+            list[CSPDirective] | None: List of evaluated CSP directives.
+        """
         directives: list[str] = []
 
         for key, value in response.headers.items():
@@ -268,6 +306,15 @@ class CSPTest(BaseModule[CSPResult]):
         return self._eval_directives(directives)
 
     def _check_csp_html(self, response: Response) -> list[CSPDirective] | None:
+        """
+        Parses the HTTP response body and searches for CSP directives.
+
+        Args:
+            response (Response): HTTP response object.
+
+        Returns:
+            list[CSPDirective] | None: List of evaluated CSP directives.
+        """
         directives: list[str] = []
 
         for meta_http in response.html.soup_body.find_all(

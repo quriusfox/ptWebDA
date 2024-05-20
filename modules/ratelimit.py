@@ -233,6 +233,13 @@ class RateLimitTest(BaseModule[RateLimitResult]):
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore
+        """
+        Subparser method for the module.
+
+        Args:
+            subparsers (argparse._SubParsersAction): Parser object passed during the command line
+            parsing in the main function.
+        """
         modname = __name__.split(".")[-1]
         parser = subparsers.add_parser(modname, add_help=True)  # type: ignore
 

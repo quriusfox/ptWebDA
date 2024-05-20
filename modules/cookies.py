@@ -20,11 +20,19 @@ PT_VULN_CODES: dict[str, str] = {
 
 # region Structures
 class SameSiteAttr(NamedTuple):
+    """
+    Structure captures state of SameSite configuration of a given cookie.
+    """
+
     present: bool
     value: str | None
 
 
 class Cookie(NamedTuple):
+    """
+    Structure representing HTTP cookie holding elements required for analysis.
+    """
+
     name: str
     secure: bool
     http_only: bool
@@ -35,6 +43,10 @@ class Cookie(NamedTuple):
 
 
 class CookieResult(NamedTuple):
+    """
+    Structure holding a list of evaluated Cookies.
+    """
+
     cookies: list[Cookie] | None
 
 
@@ -79,6 +91,9 @@ class CookieTest(BaseModule[CookieResult]):
         self.results: CookieResult | None = None
 
     def run(self) -> bool:
+        """
+        Main function for the current test.
+        """
         self.print_info()
         Log.progress("Running module")
         self.results = self.test()
@@ -89,6 +104,9 @@ class CookieTest(BaseModule[CookieResult]):
         return True
 
     def print_info(self):
+        """
+        Provides basic information about current test's setup parameters.
+        """
         Log.progress(f"Test info:\n")
         Log.print("Test name : CookiesTest")
         Log.print(
@@ -98,6 +116,14 @@ class CookieTest(BaseModule[CookieResult]):
         Log.print(f"Proxies   : {self.proxies}\n")
 
     def test(self) -> CookieResult | None:
+        """
+        Sends prepared HTTP request to the target endpoint and retireves HTTP headers. Headers are
+        then analyzed and cookies and their attributes extracted. Method also evaluates the
+        security posture of the cookie attributes.
+
+        Returns:
+            CookieResult | None: Structure holding a list of evaluated Cookies.
+        """
         all_cookies: list[Cookie] | None = None
 
         try:
@@ -200,6 +226,13 @@ class CookieTest(BaseModule[CookieResult]):
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore
+        """
+        Subparser method for the module.
+
+        Args:
+            subparsers (argparse._SubParsersAction): Parser object passed during the command line
+            parsing in the main function.
+        """
         modname = __name__.split(".")[-1]
         parser = subparsers.add_parser(modname, add_help=True)  # type: ignore
 

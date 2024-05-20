@@ -110,6 +110,9 @@ class HeadersTest(BaseModule[HeadersResults]):
         self.results: HeadersResults | None = None
 
     def run(self) -> bool:
+        """
+        Main function for the current test.
+        """
         self.print_info()
         Log.progress("Running module")
         self.results = self.test()
@@ -235,6 +238,13 @@ class HeadersTest(BaseModule[HeadersResults]):
 
     @staticmethod
     def add_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore
+        """
+        Subparser method for the module.
+
+        Args:
+            subparsers (argparse._SubParsersAction): Parser object passed during the command line
+            parsing in the main function.
+        """
         modname = __name__.split(".")[-1]
         parser = subparsers.add_parser(modname, add_help=True)  # type: ignore
 
